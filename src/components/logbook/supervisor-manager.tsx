@@ -8,6 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, fieldAria } from "@/components/shared/field";
@@ -21,7 +28,19 @@ export interface SupervisorRow extends Supervisor {
   jumlahKonsultasi: number;
 }
 
-const EMPTY_DRAFT = { nama: "", jabatan: "", departemen: "" };
+const EMPTY_DRAFT = {
+  nama: "",
+  jabatan: "",
+  departemen: "",
+  peran: "",
+  prioritas: "100",
+  bidang: "",
+  catatanGaya: "",
+};
+
+/** Peran persona konsultan (dok 04 §3.3). */
+const PERAN_OPTIONS = ["Pembimbing Utama", "Pendamping", "Penguji", "Mentor", "Rekan"];
+const NO_PERAN = "__none__";
 
 export function SupervisorManager({
   rows,
@@ -49,7 +68,15 @@ export function SupervisorManager({
   }
 
   function startEdit(s: Supervisor) {
-    setDraft({ nama: s.nama, jabatan: s.jabatan ?? "", departemen: s.departemen ?? "" });
+    setDraft({
+      nama: s.nama,
+      jabatan: s.jabatan ?? "",
+      departemen: s.departemen ?? "",
+      peran: s.peran ?? "",
+      prioritas: String(s.prioritas ?? 100),
+      bidang: (s.bidang_keahlian ?? []).join(", "),
+      catatanGaya: s.catatan_gaya ?? "",
+    });
     setErrors({});
     setMode({ id: s.id });
   }
@@ -69,10 +96,18 @@ export function SupervisorManager({
 
     setBusy(true);
     const supabase = createClient();
+    const bidang = draft.bidang
+      .split(",")
+      .map((b) => b.trim())
+      .filter(Boolean);
     const payload = {
       nama: draft.nama.trim(),
       jabatan: draft.jabatan.trim() || null,
       departemen: draft.departemen.trim() || null,
+      peran: draft.peran || null,
+      prioritas: Math.max(1, Math.min(999, Number(draft.prioritas) || 100)),
+      bidang_keahlian: bidang.length ? bidang : null,
+      catatan_gaya: draft.catatanGaya.trim() || null,
     };
 
     const { error } = editingId
@@ -190,6 +225,72 @@ export function SupervisorManager({
                 />
               </Field>
             </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field
+                label="Peran Konsultasi"
+                htmlFor="m-peran"
+                optional="untuk proyek"
+                hint="Persona pada proyek konsultasi multi-pembimbing."
+              >
+                <Select
+                  value={draft.peran || NO_PERAN}
+                  onValueChange={(v) =>
+                    setDraft((d) => ({ ...d, peran: v === NO_PERAN ? "" : v }))
+                  }
+                >
+                  <SelectTrigger id="m-peran">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_PERAN}>Tidak ditentukan</SelectItem>
+                    {PERAN_OPTIONS.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field
+                label="Prioritas Otoritas"
+                htmlFor="m-prioritas"
+                hint="Kecil = lebih otoritatif; rekomendasi tie-break saat saran bentrok."
+              >
+                <Input
+                  {...fieldAria("m-prioritas", null, true)}
+                  type="number"
+                  min={1}
+                  max={999}
+                  inputMode="numeric"
+                  value={draft.prioritas}
+                  onChange={(e) => setDraft((d) => ({ ...d, prioritas: e.target.value }))}
+                />
+              </Field>
+
+              <Field
+                label="Bidang Keahlian"
+                htmlFor="m-bidang"
+                optional="pisahkan dengan koma"
+              >
+                <Input
+                  {...fieldAria("m-bidang")}
+                  placeholder="mis. Metodologi, Statistika"
+                  value={draft.bidang}
+                  onChange={(e) => setDraft((d) => ({ ...d, bidang: e.target.value }))}
+                />
+              </Field>
+            </div>
+
+            <Field label="Catatan Gaya Komunikasi" htmlFor="m-gaya" optional="opsional">
+              <Input
+                {...fieldAria("m-gaya")}
+                placeholder="mis. Suka data konkret; hindari asumsi tanpa referensi"
+                value={draft.catatanGaya}
+                onChange={(e) => setDraft((d) => ({ ...d, catatanGaya: e.target.value }))}
+              />
+            </Field>
 
             {editingId && (
               <p className="text-[11.5px] leading-relaxed text-muted-foreground">

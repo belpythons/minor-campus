@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { LogbookForm } from "@/components/logbook/logbook-form";
 import { requireSession } from "@/lib/session";
 import { fetchLogbook, fetchSupervisors } from "@/lib/logbook-query";
+import { fetchActiveProjects } from "@/lib/project-query";
 import type { LogbookEntry } from "@/lib/types";
 
 export const metadata = { title: "Ubah Entri Log Book" };
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function EditLogbookPage({ params }: { params: { id: string } }) {
   const { supabase, user } = await requireSession();
 
-  const [{ data }, supervisors, entries] = await Promise.all([
+  const [{ data }, supervisors, entries, projects] = await Promise.all([
     supabase
       .from("logbook_entries")
       .select("*")
@@ -21,6 +22,7 @@ export default async function EditLogbookPage({ params }: { params: { id: string
       .maybeSingle(),
     fetchSupervisors(supabase, user.id),
     fetchLogbook(supabase, user.id),
+    fetchActiveProjects(supabase, user.id),
   ]);
 
   if (!data) notFound();
@@ -39,6 +41,7 @@ export default async function EditLogbookPage({ params }: { params: { id: string
         nextNomor={entry.nomor_urut}
         usedNomor={entries.map((e) => e.nomor_urut)}
         initial={entry}
+        projects={projects}
       />
     </>
   );

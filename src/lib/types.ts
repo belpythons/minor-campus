@@ -94,6 +94,11 @@ export interface Supervisor {
   nama: string;
   jabatan: string | null;
   departemen: string | null;
+  /* EXTENSION — persona konsultan (docs/perbaikan/04 §3.3) */
+  peran: string | null;
+  bidang_keahlian: string[] | null;
+  prioritas: number;
+  catatan_gaya: string | null;
   created_at: string;
 }
 
@@ -109,5 +114,51 @@ export interface LogbookEntry {
   /* EXTENSIONS */
   supervisor_id: string | null;
   hasil_tindak_lanjut: string | null;
+  /* EXTENSION — konteks proyek + audit (docs/perbaikan/04) */
+  project_id: string | null;
+  updated_at: string | null;
   created_at: string;
+}
+
+/* EXTENSION — Logbook proyek multi-persona (docs/perbaikan/04 §3.3) */
+export type ProjectStatus = "aktif" | "selesai" | "arsip";
+
+export interface Project {
+  id: string;
+  user_id: string;
+  judul: string;
+  jenis: string;
+  deskripsi: string | null;
+  fase: string | null;
+  target_tanggal: string | null;
+  status: ProjectStatus | string;
+  pertanyaan_baru: string | null;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export type AdviceStatus = "diusulkan" | "diadopsi" | "ditolak" | "di-supersede";
+
+export interface Advice {
+  id: string;
+  user_id: string;
+  project_id: string;
+  entry_id: string | null;
+  supervisor_id: string | null;
+  penyaran_nama: string;
+  area: string;
+  isi: string;
+  status: AdviceStatus | string;
+  alasan_status: string | null;
+  superseded_by: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
+export interface AdviceRelation {
+  a_id: string;
+  b_id: string;
+  jenis: "bentrok" | "menguatkan" | string;
+  catatan: string | null;
+  resolved_by: string | null;
 }

@@ -34,12 +34,12 @@ import { useDebounced, useUrlFilters } from "@/hooks/use-url-filters";
 import { createClient } from "@/lib/supabase/client";
 import { formatHariTanggal } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
-import type { LogbookEntry, Supervisor } from "@/lib/types";
+import type { LogbookEntry, Project, Supervisor } from "@/lib/types";
 import { Stagger, StaggerItem } from "@/components/motion/motion-primitives";
 
 const ALL = "semua";
 const PARAF_ALL = "semua";
-const DEFAULTS = { q: "", pembimbing: ALL, paraf: PARAF_ALL, page: "1" } as const;
+const DEFAULTS = { q: "", pembimbing: ALL, paraf: PARAF_ALL, project: ALL, page: "1" } as const;
 
 export function ParafBadge({ ok }: { ok: boolean }) {
   return ok ? (
@@ -58,10 +58,16 @@ export function ParafBadge({ ok }: { ok: boolean }) {
 export function LogbookTable({
   entries,
   supervisors,
+  projects = [],
 }: {
   entries: LogbookEntry[];
   supervisors: Supervisor[];
+  projects?: Project[];
 }) {
+  const projectById = React.useMemo(
+    () => new Map(projects.map((p) => [p.id, p])),
+    [projects],
+  );
   const router = useRouter();
   const { values, write, reset, activeCount, page, setPage } = useUrlFilters(DEFAULTS);
   const renumber = useConfirm();
@@ -91,13 +97,14 @@ export function LogbookTable({
       if (values.pembimbing !== ALL && e.supervisor_id !== values.pembimbing) return false;
       if (values.paraf === "sudah" && !e.paraf_status) return false;
       if (values.paraf === "belum" && e.paraf_status) return false;
+      if (values.project !== ALL && e.project_id !== values.project) return false;
       if (!needle) return true;
       return [e.aktivitas_pekerjaan, e.hasil_tindak_lanjut, e.pembimbing_nama]
         .join(" ")
         .toLowerCase()
         .includes(needle);
     });
-  }, [entries, values.q, values.pembimbing, values.paraf]);
+  }, [entries, values.q, values.pembimbing, values.paraf, values.project]);
 
   const { rows, safePage, pageCount } = paginate(filtered, page);
 
@@ -220,6 +227,25 @@ export function LogbookTable({
           </Select>
         </div>
 
+        {projects.length > 0 && (
+          <div className="space-y-1.5">
+            <Label htmlFor="f-project">Proyek</Label>
+            <Select value={values.project} onValueChange={(v) => write({ project: v })}>
+              <SelectTrigger id="f-project">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>Semua proyek</SelectItem>
+                {projects.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {p.judul}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className="space-y-1.5">
           <Label htmlFor="f-paraf">Status paraf</Label>
           <Select value={values.paraf} onValueChange={(v) => write({ paraf: v })}>
@@ -262,6 +288,11 @@ export function LogbookTable({
                       <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-foreground">
                         {e.aktivitas_pekerjaan}
                       </p>
+                      {e.project_id && projectById.get(e.project_id) && (
+                        <Badge variant="outline" className="mt-1.5">
+                          {projectById.get(e.project_id)!.judul}
+                        </Badge>
+                      )}
                     </div>
                     <ParafBadge ok={e.paraf_status} />
                   </div>
@@ -319,6 +350,11 @@ export function LogbookTable({
                         <p className="whitespace-pre-line leading-relaxed">
                           {e.aktivitas_pekerjaan}
                         </p>
+                        {e.project_id && projectById.get(e.project_id) && (
+                          <Badge variant="outline" className="mt-1.5">
+                            {projectById.get(e.project_id)!.judul}
+                          </Badge>
+                        )}
                         {e.hasil_tindak_lanjut && (
                           <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
                             <span className="font-semibold">Tindak lanjut:</span>{" "}

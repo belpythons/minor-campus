@@ -438,6 +438,266 @@ DROP POLICY IF EXISTS "linkedin drafts own rows" ON linkedin_drafts;
 CREATE POLICY "linkedin drafts own rows" ON linkedin_drafts
     FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+-- ---------------------------------------------------------------------
+-- 11. Logbook proyek multi-persona   (EXTENSION — dok 04 §3.3)
+--     Proyek → konsultasi (logbook_entries) → saran (pola ADR) →
+--     keputusan → Briefing Pack. Semua aditif; Formulir 2 tidak berubah.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS projects (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    judul VARCHAR(255) NOT NULL,
+    jenis VARCHAR(60) NOT NULL DEFAULT 'Lainnya',   -- Jurnal | Tugas Akhir | Lomba | KP | Lainnya
+    deskripsi TEXT,
+    fase VARCHAR(60),
+    target_tanggal DATE,
+    status VARCHAR(20) NOT NULL DEFAULT 'aktif',    -- aktif | selesai | arsip
+    pertanyaan_baru TEXT,                           -- bagian R (Recommendation) Briefing Pack
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW()),
+    updated_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW())
+);
+CREATE INDEX IF NOT EXISTS projects_user_idx ON projects (user_id, status, created_at DESC);
+
+-- Persona = perluasan supervisors (tabel existing dipakai ulang)
+ALTER TABLE supervisors ADD COLUMN IF NOT EXISTS peran VARCHAR(60);            -- Pembimbing Utama | Pendamping | Penguji | Mentor | Rekan
+ALTER TABLE supervisors ADD COLUMN IF NOT EXISTS bidang_keahlian TEXT[];
+ALTER TABLE supervisors ADD COLUMN IF NOT EXISTS prioritas INT NOT NULL DEFAULT 100;  -- kecil = lebih otoritatif (tie-break)
+ALTER TABLE supervisors ADD COLUMN IF NOT EXISTS catatan_gaya TEXT;
+
+CREATE TABLE IF NOT EXISTS project_advisors (
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    supervisor_id UUID NOT NULL REFERENCES supervisors(id) ON DELETE CASCADE,
+    PRIMARY KEY (project_id, supervisor_id)
+);
+
+-- Jembatan kompatibilitas: sesi konsultasi = entri logbook + konteks proyek
+ALTER TABLE logbook_entries ADD COLUMN IF NOT EXISTS project_id UUID
+    REFERENCES projects(id) ON DELETE SET NULL;     -- nullable: entri lama tetap sah
+ALTER TABLE logbook_entries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ;   -- audit P1-6
+
+CREATE TABLE IF NOT EXISTS advice (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    entry_id UUID REFERENCES logbook_entries(id) ON DELETE SET NULL,
+    supervisor_id UUID REFERENCES supervisors(id) ON DELETE SET NULL,
+    penyaran_nama VARCHAR(255) NOT NULL,            -- denormalisasi (pola pembimbing_nama)
+    area VARCHAR(120) NOT NULL,
+    isi TEXT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'diusulkan', -- diusulkan | diadopsi | ditolak | di-supersede
+    alasan_status TEXT,
+    superseded_by UUID REFERENCES advice(id) ON DELETE SET NULL,
+    decided_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW())
+);
+CREATE INDEX IF NOT EXISTS advice_project_idx ON advice (project_id, area, status);
+
+CREATE TABLE IF NOT EXISTS advice_relations (
+    a_id UUID NOT NULL REFERENCES advice(id) ON DELETE CASCADE,   -- saran baru
+    b_id UUID NOT NULL REFERENCES advice(id) ON DELETE CASCADE,   -- saran lama
+    jenis VARCHAR(20) NOT NULL,                     -- 'bentrok' | 'menguatkan'
+    catatan TEXT,
+    resolved_by UUID REFERENCES advice(id) ON DELETE SET NULL,    -- keputusan penutup konflik
+    PRIMARY KEY (a_id, b_id),
+    CHECK (a_id <> b_id)
+);
+
+ALTER TABLE projects         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_advisors ENABLE ROW LEVEL SECURITY;
+ALTER TABLE advice           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE advice_relations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "projects own rows" ON projects;
+CREATE POLICY "projects own rows" ON projects
+    FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "project advisors own" ON project_advisors;
+CREATE POLICY "project advisors own" ON project_advisors
+    FOR ALL TO authenticated
+    USING (EXISTS (SELECT FROM projects p WHERE p.id = project_id AND p.user_id = auth.uid()))
+    WITH CHECK (EXISTS (SELECT FROM projects p WHERE p.id = project_id AND p.user_id = auth.uid()));
+
+DROP POLICY IF EXISTS "advice own rows" ON advice;
+CREATE POLICY "advice own rows" ON advice
+    FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "advice relations own" ON advice_relations;
+CREATE POLICY "advice relations own" ON advice_relations
+    FOR ALL TO authenticated
+    USING (EXISTS (SELECT FROM advice a WHERE a.id = a_id AND a.user_id = auth.uid()))
+    WITH CHECK (EXISTS (SELECT FROM advice a WHERE a.id = a_id AND a.user_id = auth.uid()));
+
+-- Imutabilitas ala ADR (server-side, dok 04 §3.3): isi terkunci begitu
+-- status meninggalkan 'diusulkan'; transisi status dibatasi.
+CREATE OR REPLACE FUNCTION advice_guard()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF OLD.status <> 'diusulkan' AND NEW.isi <> OLD.isi THEN
+        RAISE EXCEPTION 'Saran yang sudah diputuskan tidak dapat diedit — buat saran baru sebagai pengganti (pola ADR).';
+    END IF;
+    IF NEW.status <> OLD.status THEN
+        IF NOT (
+            (OLD.status = 'diusulkan' AND NEW.status IN ('diadopsi', 'ditolak', 'di-supersede'))
+            OR (OLD.status = 'diadopsi' AND NEW.status = 'di-supersede')
+        ) THEN
+            RAISE EXCEPTION 'Transisi status saran % -> % tidak sah.', OLD.status, NEW.status;
+        END IF;
+        IF NEW.status = 'di-supersede' AND NEW.superseded_by IS NULL THEN
+            RAISE EXCEPTION 'Status di-supersede wajib menautkan saran penggantinya.';
+        END IF;
+        IF NEW.status <> 'diusulkan' AND COALESCE(NEW.alasan_status, '') = '' THEN
+            RAISE EXCEPTION 'Perubahan status saran wajib disertai alasan.';
+        END IF;
+        NEW.decided_at := COALESCE(NEW.decided_at, TIMEZONE('utc', NOW()));
+    END IF;
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS advice_immutable ON advice;
+CREATE TRIGGER advice_immutable
+    BEFORE UPDATE ON advice
+    FOR EACH ROW EXECUTE FUNCTION advice_guard();
+
+-- updated_at otomatis (projects + logbook_entries)
+CREATE OR REPLACE FUNCTION touch_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    NEW.updated_at := TIMEZONE('utc', NOW());
+    RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS projects_touch ON projects;
+CREATE TRIGGER projects_touch BEFORE UPDATE ON projects
+    FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+DROP TRIGGER IF EXISTS logbook_touch ON logbook_entries;
+CREATE TRIGGER logbook_touch BEFORE UPDATE ON logbook_entries
+    FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+
+-- Mutasi multi-baris = satu transaksi RPC (SECURITY INVOKER, RLS berlaku).
+CREATE OR REPLACE FUNCTION set_project_advisors(p_project UUID, p_supervisors UUID[])
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM projects WHERE id = p_project AND user_id = auth.uid()) THEN
+        RAISE EXCEPTION 'Proyek tidak ditemukan.';
+    END IF;
+    DELETE FROM project_advisors WHERE project_id = p_project;
+    INSERT INTO project_advisors (project_id, supervisor_id)
+    SELECT p_project, s.id FROM supervisors s
+     WHERE s.id = ANY(p_supervisors) AND s.user_id = auth.uid();
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION create_advice(
+    p_project UUID,
+    p_area VARCHAR,
+    p_isi TEXT,
+    p_supervisor UUID DEFAULT NULL,
+    p_entry UUID DEFAULT NULL,
+    p_penyaran VARCHAR DEFAULT NULL,
+    p_relasi_jenis VARCHAR DEFAULT NULL,           -- 'bentrok' | 'menguatkan'
+    p_relasi_dengan UUID DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+    v_user UUID := auth.uid();
+    v_nama VARCHAR;
+    v_id UUID;
+BEGIN
+    IF NOT EXISTS (SELECT FROM projects WHERE id = p_project AND user_id = v_user) THEN
+        RAISE EXCEPTION 'Proyek tidak ditemukan.';
+    END IF;
+    IF p_relasi_jenis IS NOT NULL AND p_relasi_jenis NOT IN ('bentrok', 'menguatkan') THEN
+        RAISE EXCEPTION 'Jenis relasi tidak dikenal: %', p_relasi_jenis;
+    END IF;
+
+    SELECT nama INTO v_nama FROM supervisors WHERE id = p_supervisor AND user_id = v_user;
+    v_nama := COALESCE(v_nama, NULLIF(TRIM(p_penyaran), ''), 'Tidak disebutkan');
+
+    INSERT INTO advice (user_id, project_id, entry_id, supervisor_id, penyaran_nama, area, isi)
+    VALUES (v_user, p_project, p_entry, p_supervisor, v_nama, TRIM(p_area), TRIM(p_isi))
+    RETURNING id INTO v_id;
+
+    IF p_relasi_jenis IS NOT NULL AND p_relasi_dengan IS NOT NULL THEN
+        INSERT INTO advice_relations (a_id, b_id, jenis)
+        VALUES (v_id, p_relasi_dengan, p_relasi_jenis);
+    END IF;
+
+    RETURN v_id;
+END;
+$$;
+
+-- Putuskan konflik: adopsi pemenang, supersede yang kalah, tutup relasinya.
+CREATE OR REPLACE FUNCTION decide_conflict(p_winner UUID, p_losers UUID[], p_alasan TEXT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+BEGIN
+    IF COALESCE(TRIM(p_alasan), '') = '' THEN
+        RAISE EXCEPTION 'Alasan keputusan wajib diisi.';
+    END IF;
+
+    UPDATE advice SET status = 'diadopsi', alasan_status = p_alasan
+     WHERE id = p_winner AND user_id = auth.uid() AND status = 'diusulkan';
+
+    UPDATE advice SET status = 'di-supersede', superseded_by = p_winner, alasan_status = p_alasan
+     WHERE id = ANY(p_losers) AND user_id = auth.uid() AND status IN ('diusulkan', 'diadopsi');
+
+    UPDATE advice_relations SET resolved_by = p_winner
+     WHERE jenis = 'bentrok' AND resolved_by IS NULL
+       AND ( (a_id = p_winner AND b_id = ANY(p_losers))
+          OR (b_id = p_winner AND a_id = ANY(p_losers))
+          OR (a_id = ANY(p_losers) AND b_id = ANY(p_losers)) );
+END;
+$$;
+
+-- Sintesis: keputusan baru menggantikan kedua saran yang bentrok.
+CREATE OR REPLACE FUNCTION decide_synthesis(p_a UUID, p_b UUID, p_isi TEXT, p_alasan TEXT)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+    v_user UUID := auth.uid();
+    v_project UUID;
+    v_area VARCHAR;
+    v_id UUID;
+BEGIN
+    IF COALESCE(TRIM(p_alasan), '') = '' THEN
+        RAISE EXCEPTION 'Alasan keputusan wajib diisi.';
+    END IF;
+    SELECT project_id, area INTO v_project, v_area
+      FROM advice WHERE id = p_a AND user_id = v_user;
+    IF v_project IS NULL THEN
+        RAISE EXCEPTION 'Saran tidak ditemukan.';
+    END IF;
+
+    INSERT INTO advice (user_id, project_id, penyaran_nama, area, isi, status, alasan_status, decided_at)
+    VALUES (v_user, v_project, 'Sintesis (keputusan sendiri)', v_area, TRIM(p_isi),
+            'diadopsi', p_alasan, TIMEZONE('utc', NOW()))
+    RETURNING id INTO v_id;
+
+    UPDATE advice SET status = 'di-supersede', superseded_by = v_id, alasan_status = p_alasan
+     WHERE id IN (p_a, p_b) AND user_id = v_user AND status IN ('diusulkan', 'diadopsi');
+
+    UPDATE advice_relations SET resolved_by = v_id
+     WHERE jenis = 'bentrok' AND resolved_by IS NULL
+       AND a_id IN (p_a, p_b) AND b_id IN (p_a, p_b);
+
+    RETURN v_id;
+END;
+$$;
+
 -- =====================================================================
 --  Auto-create a profile row when a user signs up
 -- =====================================================================

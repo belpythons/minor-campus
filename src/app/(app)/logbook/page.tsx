@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, CheckCircle2, Clock, Plus, Printer, Users } from "lucide-react";
+import { BookOpen, CheckCircle2, Clock, FolderKanban, Plus, Printer, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
@@ -9,6 +9,7 @@ import { Stagger } from "@/components/motion/motion-primitives";
 import { requireSession } from "@/lib/session";
 import { fetchLogbook, fetchSupervisors } from "@/lib/logbook-query";
 import { fetchLetterhead } from "@/lib/letterhead";
+import { fetchActiveProjects } from "@/lib/project-query";
 
 export const metadata = { title: "Log Book" };
 export const dynamic = "force-dynamic";
@@ -16,10 +17,11 @@ export const dynamic = "force-dynamic";
 export default async function LogbookPage() {
   const { supabase, user } = await requireSession();
 
-  const [entries, supervisors, letterhead] = await Promise.all([
+  const [entries, supervisors, letterhead, projects] = await Promise.all([
     fetchLogbook(supabase, user.id),
     fetchSupervisors(supabase, user.id),
     fetchLetterhead(supabase, user.id),
+    fetchActiveProjects(supabase, user.id),
   ]);
 
   const diparaf = entries.filter((e) => e.paraf_status).length;
@@ -31,6 +33,12 @@ export default async function LogbookPage() {
         description={`Formulir 2 · ${letterhead.kodeSop}`}
         actions={
           <>
+            <Button asChild variant="outline">
+              <Link href="/logbook/projects">
+                <FolderKanban aria-hidden />
+                Proyek
+              </Link>
+            </Button>
             <Button asChild variant="outline">
               <Link href="/print/formulir2" target="_blank">
                 <Printer aria-hidden />
@@ -65,7 +73,7 @@ export default async function LogbookPage() {
           />
         </Stagger>
 
-        <LogbookTable entries={entries} supervisors={supervisors} />
+        <LogbookTable entries={entries} supervisors={supervisors} projects={projects} />
       </div>
     </>
   );
