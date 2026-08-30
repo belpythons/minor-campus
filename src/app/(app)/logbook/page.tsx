@@ -8,6 +8,7 @@ import { LogbookTable } from "@/components/logbook/logbook-table";
 import { Stagger } from "@/components/motion/motion-primitives";
 import { requireSession } from "@/lib/session";
 import { fetchLogbook, fetchSupervisors } from "@/lib/logbook-query";
+import { fetchLetterhead } from "@/lib/letterhead";
 
 export const metadata = { title: "Log Book" };
 export const dynamic = "force-dynamic";
@@ -15,9 +16,10 @@ export const dynamic = "force-dynamic";
 export default async function LogbookPage() {
   const { supabase, user } = await requireSession();
 
-  const [entries, supervisors] = await Promise.all([
+  const [entries, supervisors, letterhead] = await Promise.all([
     fetchLogbook(supabase, user.id),
     fetchSupervisors(supabase, user.id),
+    fetchLetterhead(supabase, user.id),
   ]);
 
   const diparaf = entries.filter((e) => e.paraf_status).length;
@@ -26,7 +28,7 @@ export default async function LogbookPage() {
     <>
       <PageHeader
         title="Log Book Kegiatan & Konsultasi"
-        description="Formulir 2 STITEK Bontang · TI-SOP-17/FM-01"
+        description={`Formulir 2 · ${letterhead.kodeSop}`}
         actions={
           <>
             <Button asChild variant="outline">

@@ -1,12 +1,14 @@
 import { PageHeader } from "@/components/shared/page-header";
 import { ExportPanel } from "./export-panel";
 import { requireSession } from "@/lib/session";
+import { fetchLetterhead } from "@/lib/letterhead";
 
 export const metadata = { title: "Ekspor / Rekap" };
 export const dynamic = "force-dynamic";
 
 export default async function ExportPage() {
   const { supabase, user } = await requireSession();
+  const letterhead = await fetchLetterhead(supabase, user.id);
 
   // Only the bounds are needed here, not the rows — keeps the payload tiny.
   const [{ data: first }, { data: last }, { count }] = await Promise.all([
@@ -34,7 +36,7 @@ export default async function ExportPage() {
     <>
       <PageHeader
         title="Ekspor & Rekap Laporan Magang"
-        description="Cetak dokumen resmi PT Badak NGL atau unduh data mentah untuk diolah di spreadsheet."
+        description={`Cetak dokumen resmi ${letterhead.orgNama} atau unduh data mentah untuk diolah di spreadsheet.`}
         back={{ href: "/reports", label: "Laporan Saya" }}
       />
       <ExportPanel

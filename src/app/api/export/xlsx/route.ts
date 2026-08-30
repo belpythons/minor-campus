@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
@@ -5,6 +7,7 @@ import { fetchFilteredReports, parseFilters, periodeLabel } from "@/lib/report-q
 import { EXPORT_HEADERS, exportFilename, toExportRow } from "@/lib/export";
 import { computeStats, recapByKategori } from "@/lib/report-stats";
 import { ORG } from "@/lib/constants";
+import { fetchLetterhead } from "@/lib/letterhead";
 import { pluralJam } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +15,28 @@ export const runtime = "nodejs";
 
 const NAVY = "FF001E41";
 const HEAD_BG = "FFEEF2F7";
+
+/**
+ * Logo bytes for the workbook letterhead — bucket URL or the bundled default.
+ * Any failure returns null: the export must never die over a picture.
+ */
+async function fetchLogoBuffer(
+  logoSrc: string,
+): Promise<{ buffer: Buffer; extension: "png" | "jpeg" } | null> {
+  try {
+    if (logoSrc.startsWith("/")) {
+      const buffer = await readFile(path.join(process.cwd(), "public", logoSrc.slice(1)));
+      return { buffer, extension: "png" };
+    }
+    const ext = /\.jpe?g(\?|$)/i.test(logoSrc) ? "jpeg" : /\.png(\?|$)/i.test(logoSrc) ? "png" : null;
+    if (!ext) return null; // ExcelJS cannot embed SVG — keep the text-only kop.
+    const res = await fetch(logoSrc);
+    if (!res.ok) return null;
+    return { buffer: Buffer.from(await res.arrayBuffer()), extension: ext };
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(request: Request) {
   const supabase = createClient();
@@ -28,7 +53,10 @@ export async function GET(request: Request) {
     .maybeSingle();
 
   const filters = parseFilters(new URL(request.url).searchParams);
-  const reports = await fetchFilteredReports(supabase, user.id, filters);
+  const [reports, letterhead] = await Promise.all([
+    fetchFilteredReports(supabase, user.id, filters),
+    fetchLetterhead(supabase, user.id),
+  ]);
   const nama = profile?.nama_lengkap || user.email?.split("@")[0] || "Peserta";
 
   const wb = new ExcelJS.Workbook();
@@ -74,9 +102,25 @@ export async function GET(request: Request) {
   const sum = wb.addWorksheet("Ringkasan");
   sum.columns = [{ width: 30 }, { width: 40 }];
 
-  const title = sum.addRow(["LAPORAN KEGIATAN MAGANG", ""]);
+  // Kop bergambar (dok 03 §2.6): logo kiri-atas, judul + baris kop menyusul.
+  const logo = await fetchLogoBuffer(letterhead.logoSrc);
+  if (logo) {
+    // ExcelJS declares its own Buffer type that predates Node's generics.
+    const imgId = wb.addImage({
+      buffer: logo.buffer as unknown as ExcelJS.Buffer,
+      extension: logo.extension,
+    });
+    sum.addImage(imgId, { tl: { col: 0, row: 0 }, ext: { width: 46, height: 46 } });
+    sum.addRow([]);
+    sum.addRow([]);
+    sum.addRow([]);
+  }
+
+  const title = sum.addRow([letterhead.judulDokumen, ""]);
   title.font = { bold: true, size: 13, color: { argb: NAVY } };
-  sum.addRow([ORG.perusahaanSub, ""]).font = { size: 9, color: { argb: "FF45566E" } };
+  for (const baris of letterhead.kopBaris) {
+    sum.addRow([baris, ""]).font = { size: 9, color: { argb: "FF45566E" } };
+  }
   sum.addRow([]);
 
   const info: [string, string | number][] = [
@@ -118,7 +162,7 @@ export async function GET(request: Request) {
   return new NextResponse(buffer as ArrayBuffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="${exportFilename("xlsx")}"`,
+      "Content-Disposition": `attachment; filename="${exportFilename("xlsx", letterhead.exportFilePrefix)}"`,
     },
   });
 }

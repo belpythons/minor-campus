@@ -21,6 +21,19 @@ export function PrintToolbar({
   hint?: string;
   extra?: React.ReactNode;
 }) {
+  // Remote letterhead logos live on another origin; wait for them (max 3s)
+  // so the saved PDF never has a hole where the logo should be.
+  async function onPrint() {
+    const pending = Array.from(document.images).filter((img) => !img.complete);
+    if (pending.length) {
+      await Promise.race([
+        Promise.all(pending.map((img) => img.decode().catch(() => {}))),
+        new Promise((r) => setTimeout(r, 3000)),
+      ]);
+    }
+    window.print();
+  }
+
   return (
     <div className="print-toolbar">
       <div className="min-w-0">
@@ -30,7 +43,7 @@ export function PrintToolbar({
 
       <div className="flex flex-wrap gap-2">
         {extra}
-        <Button type="button" variant="gradient" size="sm" onClick={() => window.print()}>
+        <Button type="button" variant="gradient" size="sm" onClick={onPrint}>
           <Printer aria-hidden />
           Cetak / Simpan PDF
         </Button>

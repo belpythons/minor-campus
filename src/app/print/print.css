@@ -73,6 +73,20 @@
   object-fit: contain;
 }
 
+/* Custom uploaded logos keep their aspect ratio; the default crest keeps the
+   fixed boxes above so the no-settings PDF stays pixel-identical (dok 03 §2.4). */
+.badak-kop img.logo-adaptif {
+  width: auto;
+  height: 46px;
+  max-width: 120px;
+}
+
+.stitek-kop-logo img.logo-adaptif {
+  width: auto;
+  height: 17mm;
+  max-width: 30mm;
+}
+
 .badak-kop h1 {
   margin: 0;
   font-size: 15pt;

@@ -1,6 +1,7 @@
 import { PrintToolbar } from "@/components/print/print-toolbar";
 import { displayName, requireSession } from "@/lib/session";
 import { ORG } from "@/lib/constants";
+import { fetchLetterhead } from "@/lib/letterhead";
 import {
   fetchCommentsFor,
   fetchFilteredReports,
@@ -42,6 +43,7 @@ export default async function RekapMagangPage({
 }) {
   const { supabase, user, profile } = await requireSession();
   const filters = parseFilters(searchParams);
+  const letterhead = await fetchLetterhead(supabase, user.id);
 
   const reports = await fetchFilteredReports(supabase, user.id, filters);
   const comments = filters.komentar
@@ -66,15 +68,17 @@ export default async function RekapMagangPage({
         {/* ------------------------------- Kop ------------------------------- */}
         <div className="badak-kop">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Logo" />
+          <img src={letterhead.logoSrc} alt="Logo" className={letterhead.customLogo ? "logo-adaptif" : undefined} />
           <div>
-            <h1>{ORG.perusahaan}</h1>
-            <p>{ORG.perusahaanSub}</p>
+            <h1>{letterhead.kopBaris[0]}</h1>
+            {letterhead.kopBaris.slice(1).map((baris) => (
+              <p key={baris}>{baris}</p>
+            ))}
           </div>
         </div>
 
         <div className="badak-title">
-          <h2>LAPORAN KEGIATAN MAGANG</h2>
+          <h2>{letterhead.judulDokumen}</h2>
           <p>
             {nama} · Periode {periode}
           </p>
@@ -296,7 +300,7 @@ export default async function RekapMagangPage({
         </div>
 
         <div className="print-foot">
-          <span>Dicetak dari aplikasi Task Report Magang · {ORG.perusahaanMixed}</span>
+          <span>{letterhead.footerText}</span>
           <span>
             {formatTimestamp(new Date())} · oleh {nama}
           </span>

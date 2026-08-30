@@ -2,6 +2,7 @@ import { PrintToolbar } from "@/components/print/print-toolbar";
 import { displayName, requireSession } from "@/lib/session";
 import { fetchLogbook } from "@/lib/logbook-query";
 import { ORG } from "@/lib/constants";
+import { fetchLetterhead } from "@/lib/letterhead";
 import { formatHariTanggal, formatTanggal, todayISO } from "@/lib/format";
 
 export const metadata = { title: "Formulir 2 — Kehadiran & Aktifitas KP" };
@@ -13,6 +14,7 @@ export default async function Formulir2Page({
   searchParams: { pembimbing?: string };
 }) {
   const { supabase, user, profile } = await requireSession();
+  const letterhead = await fetchLetterhead(supabase, user.id);
 
   const all = await fetchLogbook(supabase, user.id);
   const entries = searchParams.pembimbing
@@ -20,7 +22,7 @@ export default async function Formulir2Page({
     : all;
 
   const nama = displayName(profile, user.email);
-  const lokasi = profile?.lokasi_ttd || ORG.lokasi;
+  const lokasi = profile?.lokasi_ttd || letterhead.lokasiTtd;
 
   // The signature block names one field supervisor. Prefer the profile setting,
   // otherwise fall back to whoever signed off most of the entries.
@@ -46,15 +48,15 @@ export default async function Formulir2Page({
         <div className="stitek-kop">
           <div className="stitek-kop-logo">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="Logo STITEK Bontang" />
+            <img src={letterhead.logoSrc} alt="Logo kampus" className={letterhead.customLogo ? "logo-adaptif" : undefined} />
           </div>
           <div className="stitek-kop-inst">
-            <strong>{ORG.kampusUpper}</strong>
-            <span>{ORG.prodiUpper}</span>
+            <strong>{letterhead.kampusUpper}</strong>
+            <span>{letterhead.prodiUpper}</span>
           </div>
           <div className="stitek-kop-form">
-            <strong>{ORG.formulirTitle}</strong>
-            <span>{ORG.kodeSop}</span>
+            <strong>{letterhead.formulirTitle}</strong>
+            <span>{letterhead.kodeSop}</span>
           </div>
         </div>
 

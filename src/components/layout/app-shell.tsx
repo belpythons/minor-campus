@@ -17,10 +17,14 @@ import { AnimatePresence, motion } from "@/components/motion/motion-primitives";
 export function AppShell({
   nama,
   instansi,
+  logoSrc,
+  subtitle,
   children,
 }: {
   nama: string;
   instansi: string;
+  logoSrc?: string;
+  subtitle?: string;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -35,7 +39,7 @@ export function AppShell({
       {/* Desktop rail */}
       <aside className="hidden w-[250px] shrink-0 lg:block">
         <div className="fixed inset-y-0 left-0 z-30 w-[250px]">
-          <SidebarNav />
+          <SidebarNav logoSrc={logoSrc} subtitle={subtitle} />
         </div>
       </aside>
 
@@ -49,7 +53,7 @@ export function AppShell({
           <SheetDescription className="sr-only">
             Semua halaman pada tiga modul: SKM, Task Report Magang, dan Log Book.
           </SheetDescription>
-          <SidebarNav onNavigate={() => setDrawerOpen(false)} />
+          <SidebarNav logoSrc={logoSrc} subtitle={subtitle} onNavigate={() => setDrawerOpen(false)} />
         </SheetContent>
       </Sheet>
 

@@ -151,7 +151,7 @@ export function ProfileForm({
               Identitas Mahasiswa
             </CardTitle>
             <CardDescription>
-              Mengisi kop Formulir 2 STITEK dan Section I dokumen rekap PT Badak NGL.
+              Mengisi identitas pada Formulir 2 dan Section I dokumen rekap magang.
             </CardDescription>
           </CardHeader>
 

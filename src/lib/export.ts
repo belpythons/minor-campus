@@ -48,9 +48,9 @@ export function buildCsv(reports: InternshipReport[]): string {
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 
-/** "laporan-magang-2026-08-27.xlsx" */
-export function exportFilename(ext: string): string {
+/** "laporan-magang-2026-08-27.xlsx" — prefix follows the letterhead judul. */
+export function exportFilename(ext: string, prefix = "laporan-magang"): string {
   const d = new Date();
   const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  return `laporan-magang-${stamp}.${ext}`;
+  return `${prefix}-${stamp}.${ext}`;
 }

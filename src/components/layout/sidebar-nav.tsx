@@ -14,7 +14,15 @@ import { motion } from "@/components/motion/motion-primitives";
  * Navigation list shared by the fixed desktop rail and the mobile drawer.
  * `onNavigate` lets the drawer close itself when a link is followed.
  */
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({
+  onNavigate,
+  logoSrc = "/logo.png",
+  subtitle = "STITEK · PT Badak NGL",
+}: {
+  onNavigate?: () => void;
+  logoSrc?: string;
+  subtitle?: string;
+}) {
   const pathname = usePathname();
 
   return (
@@ -25,16 +33,16 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
         className="flex items-center gap-2.5 border-b border-white/10 px-4 py-4"
       >
         <Image
-          src="/logo.png"
+          src={logoSrc}
           alt=""
           width={38}
           height={38}
           priority
-          className="shrink-0 rounded-md bg-white p-0.5"
+          className="shrink-0 rounded-md bg-white object-contain p-0.5"
         />
         <span className="flex min-w-0 flex-col leading-tight">
           <strong className="truncate text-sm font-bold text-white">Student Hub</strong>
-          <small className="truncate text-[10.5px] text-sidebar-muted">STITEK · PT Badak NGL</small>
+          <small className="truncate text-[10.5px] text-sidebar-muted">{subtitle}</small>
         </span>
       </Link>
 

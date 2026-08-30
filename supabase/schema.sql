@@ -139,6 +139,32 @@ BEGIN
     END IF;
 END $$;
 
+-- ---------------------------------------------------------------------
+-- 8. letterhead_settings   (EXTENSION — dok 03 kop surat fleksibel)
+--    Per-user letterhead identity for both printed documents. Absent row
+--    = built-in Badak NGL / STITEK defaults, so existing output is
+--    untouched until the user opts in.
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS letterhead_settings (
+    user_id       UUID PRIMARY KEY REFERENCES profiles(id) ON DELETE CASCADE,
+    -- Kop dokumen rekap magang; 1–4 baris, baris pertama dirender sebagai h1
+    kop_baris     TEXT[] NOT NULL DEFAULT ARRAY[
+                    'PT BADAK NGL',
+                    'Program Magang / Praktik Kerja Lapangan · Bontang, Kalimantan Timur'],
+    judul_dokumen VARCHAR(160) NOT NULL DEFAULT 'LAPORAN KEGIATAN MAGANG',
+    -- Kop Formulir 2 (identitas kampus)
+    kampus_upper  VARCHAR(160) NOT NULL DEFAULT 'SEKOLAH TINGGI TEKNOLOGI BONTANG',
+    prodi_upper   VARCHAR(160) NOT NULL DEFAULT 'PROGRAM STUDI TEKNIK INFORMATIKA',
+    formulir_title VARCHAR(160) NOT NULL DEFAULT 'FORM KEHADIRAN DAN AKTIFITAS KERJA PRAKTEK',
+    kode_sop      VARCHAR(60)  NOT NULL DEFAULT 'TI-SOP-17/FM-01',
+    lokasi_ttd    VARCHAR(120) NOT NULL DEFAULT 'Bontang',
+    -- Logo: NULL = /logo.png bawaan; unggahan disimpan pada path berversi
+    -- "<user_id>/logo-v<versi>.<ext>" sehingga cache SW/CDN selalu ter-bypass
+    logo_url      TEXT,
+    logo_versi    INT NOT NULL DEFAULT 0,
+    updated_at    TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW())
+);
+
 -- =====================================================================
 --  Auto-create a profile row when a user signs up
 -- =====================================================================
@@ -179,6 +205,7 @@ ALTER TABLE internship_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE report_comments    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE supervisors        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE logbook_entries    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE letterhead_settings ENABLE ROW LEVEL SECURITY;
 
 -- profiles
 DROP POLICY IF EXISTS "profiles readable by authenticated" ON profiles;
@@ -230,6 +257,11 @@ DROP POLICY IF EXISTS "logbook own rows" ON logbook_entries;
 CREATE POLICY "logbook own rows" ON logbook_entries
     FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+-- letterhead_settings — private
+DROP POLICY IF EXISTS "letterhead own rows" ON letterhead_settings;
+CREATE POLICY "letterhead own rows" ON letterhead_settings
+    FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
 -- =====================================================================
 --  Storage buckets
 -- =====================================================================
@@ -241,16 +273,20 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('report-photos', 'report-photos', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('org-logos', 'org-logos', TRUE)
+ON CONFLICT (id) DO NOTHING;
+
 -- Public read, owner-scoped writes. Uploads are stored under "<user_id>/<file>".
 DROP POLICY IF EXISTS "qol public read" ON storage.objects;
 CREATE POLICY "qol public read" ON storage.objects
-    FOR SELECT USING (bucket_id IN ('skm-certificates', 'report-photos'));
+    FOR SELECT USING (bucket_id IN ('skm-certificates', 'report-photos', 'org-logos'));
 
 DROP POLICY IF EXISTS "qol owner upload" ON storage.objects;
 CREATE POLICY "qol owner upload" ON storage.objects
     FOR INSERT TO authenticated
     WITH CHECK (
-        bucket_id IN ('skm-certificates', 'report-photos')
+        bucket_id IN ('skm-certificates', 'report-photos', 'org-logos')
         AND (STORAGE.FOLDERNAME(name))[1] = auth.uid()::TEXT
     );
 
@@ -258,6 +294,6 @@ DROP POLICY IF EXISTS "qol owner delete" ON storage.objects;
 CREATE POLICY "qol owner delete" ON storage.objects
     FOR DELETE TO authenticated
     USING (
-        bucket_id IN ('skm-certificates', 'report-photos')
+        bucket_id IN ('skm-certificates', 'report-photos', 'org-logos')
         AND (STORAGE.FOLDERNAME(name))[1] = auth.uid()::TEXT
     );
