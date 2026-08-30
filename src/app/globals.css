@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================================
+   Design tokens
+   ---------------------------------------------------------------------
+   Two layers live here on purpose:
+
+   1. shadcn/ui semantic tokens (HSL triplets) — drive every component.
+   2. Brand tokens (hex) — consumed by src/app/print/print.css, whose
+      output was verified pixel-for-pixel against QOL/template kop.pdf
+      and QOL/log book.docx. They are pinned to the light values in both
+      themes so a PDF never changes with the UI theme.
+
+   Brand source: the live reference app at http://10.10.1.187:8097
+     navy #001e41 · blue #0057a8 · red #e3001b · amber #f9a330
+   ===================================================================== */
+
+@layer base {
+  :root {
+    /* ---- shadcn semantic tokens · light ---- */
+    --background: 210 33% 98%;
+    --foreground: 217 33% 17%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 217 33% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 217 33% 17%;
+
+    /* PT Badak NGL blue */
+    --primary: 209 100% 33%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 213 33% 96%;
+    --secondary-foreground: 213 100% 13%;
+
+    --muted: 213 33% 96%;
+    /* 5.9:1 on white — was #6b7c93 at 4.26:1, below WCAG AA */
+    --muted-foreground: 214 20% 42%;
+
+    --accent: 213 40% 94%;
+    --accent-foreground: 213 100% 13%;
+
+    --destructive: 351 100% 45%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 149 82% 30%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 33 94% 43%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 213 30% 89%;
+    --input: 213 30% 86%;
+    --ring: 209 100% 33%;
+
+    --radius: 0.65rem;
+
+    /* Dark navy chrome — sidebar keeps its own scale in both themes */
+    --sidebar: 218 80% 20%;
+    --sidebar-accent: 218 82% 15%;
+    --sidebar-foreground: 213 55% 87%;
+    --sidebar-muted: 213 26% 65%;
+
+    /* ---- Brand tokens · pinned, print depends on these ---- */
+    --navy: #001e41;
+    --blue: #0057a8;
+    --red: #e3001b;
+    --amber: #f9a330;
+    --brand-border: #e2e8f0;
+    --brand-muted: #55677f;
+    --brand-text: #1e293b;
+  }
+
+  .dark {
+    --background: 218 45% 9%;
+    --foreground: 213 30% 92%;
+
+    --card: 218 40% 12%;
+    --card-foreground: 213 30% 92%;
+
+    --popover: 218 40% 13%;
+    --popover-foreground: 213 30% 92%;
+
+    /* Lifted for legibility on a dark ground */
+    --primary: 207 90% 61%;
+    --primary-foreground: 218 60% 10%;
+
+    --secondary: 218 32% 18%;
+    --secondary-foreground: 213 30% 92%;
+
+    --muted: 218 30% 17%;
+    /* 6.1:1 on --card */
+    --muted-foreground: 214 20% 68%;
+
+    --accent: 218 32% 20%;
+    --accent-foreground: 213 30% 95%;
+
+    --destructive: 351 85% 62%;
+    --destructive-foreground: 218 60% 10%;
+
+    --success: 149 55% 52%;
+    --success-foreground: 218 60% 10%;
+
+    --warning: 33 88% 60%;
+    --warning-foreground: 218 60% 10%;
+
+    --border: 218 26% 22%;
+    --input: 218 26% 26%;
+    --ring: 207 90% 61%;
+
+    --sidebar: 218 48% 11%;
+    --sidebar-accent: 218 50% 8%;
+    --sidebar-foreground: 213 32% 84%;
+    --sidebar-muted: 213 20% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* One visible focus treatment for the whole app. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Native controls follow the theme (date/time pickers, scrollbars). */
+  :root {
+    color-scheme: light;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  /* Honour the OS "reduce motion" setting everywhere at once. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Notch / home-indicator padding for the mobile chrome. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .pt-safe {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .h-safe-bottom {
+    height: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Tabular figures keep KPI digits from shifting while counting up. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 999px;
+  }
+}
