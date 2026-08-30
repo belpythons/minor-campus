@@ -379,6 +379,65 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------
+-- 10. RAG LinkedIn branding   (EXTENSION — dok 02)
+--     branding_chunks hanya diakses lewat RPC SECURITY DEFINER — RLS
+--     deny-all (enable tanpa policy). linkedin_drafts = cache + riwayat.
+-- ---------------------------------------------------------------------
+CREATE EXTENSION IF NOT EXISTS vector;
+
+CREATE TABLE IF NOT EXISTS branding_chunks (
+    id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sumber     VARCHAR(160) NOT NULL,        -- nama file kb + heading
+    bahasa     VARCHAR(5) NOT NULL DEFAULT 'id',
+    seksi      VARCHAR(40),                  -- experience|certification|award|volunteering|umum
+    konten     TEXT NOT NULL,
+    embedding  vector(768) NOT NULL
+);
+CREATE INDEX IF NOT EXISTS branding_chunks_embedding_idx
+    ON branding_chunks USING hnsw (embedding vector_cosine_ops);
+
+ALTER TABLE branding_chunks ENABLE ROW LEVEL SECURITY;   -- deny-all by design
+
+CREATE OR REPLACE FUNCTION match_branding_chunks(
+    query_embedding vector(768),
+    match_count INT DEFAULT 4,
+    filter_seksi VARCHAR DEFAULT NULL,
+    filter_bahasa VARCHAR DEFAULT NULL
+)
+RETURNS TABLE (id UUID, konten TEXT, sumber VARCHAR, seksi VARCHAR, similarity FLOAT)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    SELECT bc.id, bc.konten, bc.sumber, bc.seksi,
+           1 - (bc.embedding <=> query_embedding) AS similarity
+      FROM branding_chunks bc
+     WHERE (filter_seksi IS NULL OR bc.seksi = filter_seksi OR bc.seksi = 'umum')
+       AND (filter_bahasa IS NULL OR bc.bahasa = filter_bahasa)
+     ORDER BY bc.embedding <=> query_embedding
+     LIMIT LEAST(GREATEST(match_count, 1), 8)
+$$;
+
+CREATE TABLE IF NOT EXISTS linkedin_drafts (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    activity_id UUID NOT NULL REFERENCES skm_activities(id) ON DELETE CASCADE,
+    seksi       VARCHAR(40) NOT NULL,
+    input_hash  VARCHAR(64) NOT NULL,        -- sha256(input) → cache hit tanpa panggil model
+    draft       TEXT NOT NULL,
+    model       VARCHAR(60) NOT NULL,
+    created_at  TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW())
+);
+CREATE INDEX IF NOT EXISTS linkedin_drafts_lookup
+    ON linkedin_drafts (user_id, activity_id, seksi, input_hash, created_at DESC);
+
+ALTER TABLE linkedin_drafts ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "linkedin drafts own rows" ON linkedin_drafts;
+CREATE POLICY "linkedin drafts own rows" ON linkedin_drafts
+    FOR ALL TO authenticated USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
 -- =====================================================================
 --  Auto-create a profile row when a user signs up
 -- =====================================================================

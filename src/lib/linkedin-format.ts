@@ -54,7 +54,12 @@ function dateRange(a: SkmActivity): string {
  * Text blocks ready to paste into LinkedIn.
  * Layout follows modul-skm/03-FITUR-LINKEDIN-ASSISTANT.md exactly.
  */
-export function formatForLinkedIn(a: SkmActivity, section: LinkedInSection): string {
+/** `instansi` mengikuti profil/persona pengguna; default = kampus bawaan. */
+export function formatForLinkedIn(
+  a: SkmActivity,
+  section: LinkedInSection,
+  instansi: string = ORG.kampus,
+): string {
   const skills = skillsLine(a.skill_tags);
 
   if (section === "experience") {
@@ -83,7 +88,7 @@ export function formatForLinkedIn(a: SkmActivity, section: LinkedInSection): str
 
   const lines = [
     `Title: ${a.judul}`,
-    `Associated with: ${ORG.kampus}`,
+    `Associated with: ${instansi}`,
     `Issuer: ${a.penyelenggara}`,
     `Issue Date: ${formatTanggal(a.tanggal_mulai).replace(/^\d+\s/, "")}`,
   ];

@@ -25,6 +25,8 @@ export default async function LinkedInPage() {
       <LinkedInAssistant
         activities={(data ?? []) as SkmActivity[]}
         nama={displayName(profile, user.email)}
+        instansi={profile?.instansi ?? null}
+        aiConfigured={Boolean(process.env.GEMINI_API_KEY)}
       />
     </>
   );
