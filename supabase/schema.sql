@@ -698,6 +698,152 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------
+-- 12. Pengerasan rilis   (EXTENSION — audit P0-4, P0-5, P2-3)
+--     Mutasi multi-baris logbook menjadi transaksi RPC tunggal.
+-- ---------------------------------------------------------------------
+
+-- P0-4 + P0-2: supervisor baru (opsional) + entri dalam SATU transaksi.
+-- p_id NULL = create; terisi = update entri milik sendiri.
+CREATE OR REPLACE FUNCTION save_logbook_entry(
+    p_nomor INT,
+    p_tanggal DATE,
+    p_aktivitas TEXT,
+    p_id UUID DEFAULT NULL,
+    p_supervisor UUID DEFAULT NULL,
+    p_baru_nama VARCHAR DEFAULT NULL,
+    p_baru_jabatan VARCHAR DEFAULT NULL,
+    p_baru_departemen VARCHAR DEFAULT NULL,
+    p_hasil TEXT DEFAULT NULL,
+    p_paraf BOOLEAN DEFAULT FALSE,
+    p_project UUID DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+    v_user UUID := auth.uid();
+    v_sup supervisors%ROWTYPE;
+    v_id UUID;
+BEGIN
+    IF p_nomor IS NULL OR p_nomor < 1 THEN
+        RAISE EXCEPTION 'Nomor urut harus 1 atau lebih.';
+    END IF;
+    IF COALESCE(TRIM(p_aktivitas), '') = '' THEN
+        RAISE EXCEPTION 'Aktivitas wajib diisi.';
+    END IF;
+
+    IF p_supervisor IS NOT NULL THEN
+        SELECT * INTO v_sup FROM supervisors WHERE id = p_supervisor AND user_id = v_user;
+        IF NOT FOUND THEN RAISE EXCEPTION 'Pembimbing tidak ditemukan.'; END IF;
+    ELSIF COALESCE(TRIM(p_baru_nama), '') <> '' THEN
+        INSERT INTO supervisors (user_id, nama, jabatan, departemen)
+        VALUES (v_user, TRIM(p_baru_nama), NULLIF(TRIM(p_baru_jabatan), ''), NULLIF(TRIM(p_baru_departemen), ''))
+        RETURNING * INTO v_sup;
+    ELSE
+        RAISE EXCEPTION 'Pilih pembimbing atau isi nama pembimbing baru.';
+    END IF;
+
+    IF p_project IS NOT NULL
+       AND NOT EXISTS (SELECT FROM projects WHERE id = p_project AND user_id = v_user) THEN
+        RAISE EXCEPTION 'Proyek tidak ditemukan.';
+    END IF;
+
+    IF p_id IS NULL THEN
+        INSERT INTO logbook_entries
+            (user_id, nomor_urut, tanggal, aktivitas_pekerjaan,
+             pembimbing_nama, pembimbing_jabatan, supervisor_id,
+             hasil_tindak_lanjut, paraf_status, project_id)
+        VALUES
+            (v_user, p_nomor, p_tanggal, TRIM(p_aktivitas),
+             v_sup.nama, v_sup.jabatan, v_sup.id,
+             NULLIF(TRIM(p_hasil), ''), COALESCE(p_paraf, FALSE), p_project)
+        RETURNING id INTO v_id;
+    ELSE
+        UPDATE logbook_entries SET
+            nomor_urut = p_nomor,
+            tanggal = p_tanggal,
+            aktivitas_pekerjaan = TRIM(p_aktivitas),
+            pembimbing_nama = v_sup.nama,
+            pembimbing_jabatan = v_sup.jabatan,
+            supervisor_id = v_sup.id,
+            hasil_tindak_lanjut = NULLIF(TRIM(p_hasil), ''),
+            paraf_status = COALESCE(p_paraf, FALSE),
+            project_id = p_project
+        WHERE id = p_id AND user_id = v_user
+        RETURNING id INTO v_id;
+        IF v_id IS NULL THEN RAISE EXCEPTION 'Entri tidak ditemukan.'; END IF;
+    END IF;
+
+    RETURN v_id;
+END;
+$$;
+
+-- P0-5: renumber atomik — satu UPDATE ber-window, tanpa offset 10000.
+CREATE OR REPLACE FUNCTION renumber_logbook()
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+    n INT;
+BEGIN
+    WITH ordered AS (
+        SELECT id,
+               ROW_NUMBER() OVER (ORDER BY tanggal, nomor_urut, created_at) AS rn
+          FROM logbook_entries
+         WHERE user_id = auth.uid()
+    )
+    UPDATE logbook_entries e
+       SET nomor_urut = o.rn
+      FROM ordered o
+     WHERE e.id = o.id AND e.nomor_urut <> o.rn;
+    GET DIAGNOSTICS n = ROW_COUNT;
+    RETURN n;
+END;
+$$;
+
+-- P2-3: rename pembimbing + sinkronisasi salinan denormalisasi, satu transaksi.
+CREATE OR REPLACE FUNCTION update_supervisor_sync(
+    p_id UUID,
+    p_nama VARCHAR,
+    p_jabatan VARCHAR DEFAULT NULL,
+    p_departemen VARCHAR DEFAULT NULL,
+    p_peran VARCHAR DEFAULT NULL,
+    p_prioritas INT DEFAULT 100,
+    p_bidang TEXT[] DEFAULT NULL,
+    p_catatan TEXT DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+    v_user UUID := auth.uid();
+BEGIN
+    IF COALESCE(TRIM(p_nama), '') = '' THEN
+        RAISE EXCEPTION 'Nama pembimbing wajib diisi.';
+    END IF;
+
+    UPDATE supervisors SET
+        nama = TRIM(p_nama),
+        jabatan = NULLIF(TRIM(p_jabatan), ''),
+        departemen = NULLIF(TRIM(p_departemen), ''),
+        peran = NULLIF(TRIM(p_peran), ''),
+        prioritas = GREATEST(1, LEAST(999, COALESCE(p_prioritas, 100))),
+        bidang_keahlian = p_bidang,
+        catatan_gaya = NULLIF(TRIM(p_catatan), '')
+    WHERE id = p_id AND user_id = v_user;
+    IF NOT FOUND THEN RAISE EXCEPTION 'Pembimbing tidak ditemukan.'; END IF;
+
+    UPDATE logbook_entries
+       SET pembimbing_nama = TRIM(p_nama),
+           pembimbing_jabatan = NULLIF(TRIM(p_jabatan), '')
+     WHERE supervisor_id = p_id AND user_id = v_user;
+END;
+$$;
+
 -- =====================================================================
 --  Auto-create a profile row when a user signs up
 -- =====================================================================

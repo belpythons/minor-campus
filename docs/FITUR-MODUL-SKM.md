@@ -144,3 +144,22 @@ atas shadcn/ui: `skm-list.tsx`, `skm-form.tsx`, `skm-progress.tsx`,
   Assistant menjadi rail horizontal.
 - **Tag input** kini memecah daftar yang dipisah koma, baik diketik maupun
   di-paste.
+
+---
+
+## Pembaruan v1.0
+
+- **Persona kampus**: aturan poin kini data runtime (`institution_presets` +
+  `skm_point_rules`, seed ITS SKEM 1000 / UNAIR SKP 75 / Tel-U TAK 60 /
+  BINUS SAT 120+30 jam sosial / Kustom = baseline lama). Pemilih persona di
+  `/skm`; konversi antar persona satu transaksi RPC lewat `equivalence_key`;
+  entri manual tidak diubah diam-diam. Provenance `tingkat`/`rule_id`/
+  `jam_sosial` tersimpan di `skm_activities`.
+- **Mutasi via Server Action** (`src/app/(app)/skm/actions.ts`) dengan validasi
+  server-side; CHECK `poin_skm >= 0` di DB.
+- **Agregasi tunggal** `src/lib/skm-aggregate.ts` (dipakai /skm, dashboard,
+  portfolioMarkdown) — mendukung cap kategori dan total jam sosial.
+- **LinkedIn Assistant AI (RAG)**: tombol "Tulis ulang dengan AI" muncul bila
+  `GEMINI_API_KEY` diset; retrieval dari korpus `docs/branding-kb/` via
+  pgvector; cache + riwayat draft di `linkedin_drafts`; tanpa key, template
+  deterministik lama tetap bekerja penuh. Lihat `docs/RILIS-v1.0.md`.

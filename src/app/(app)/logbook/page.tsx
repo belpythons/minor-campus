@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BookOpen, CheckCircle2, Clock, FolderKanban, Plus, Printer, Users } from "lucide-react";
+import { BookOpen, CheckCircle2, Clock, Download, FolderKanban, Plus, Printer, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
@@ -44,6 +44,18 @@ export default async function LogbookPage() {
                 <Printer aria-hidden />
                 Cetak Formulir 2
               </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <a href="/api/export/xlsx?dataset=logbook">
+                <Download aria-hidden />
+                XLSX
+              </a>
+            </Button>
+            <Button asChild variant="outline">
+              <a href="/api/export/csv?dataset=logbook">
+                <Download aria-hidden />
+                CSV
+              </a>
             </Button>
             <Button asChild variant="gradient">
               <Link href="/logbook/new">

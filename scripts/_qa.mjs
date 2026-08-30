@@ -7,8 +7,9 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import puppeteer from "puppeteer-core";
+import { QA_EMAIL, QA_PASSWORD, findChrome } from "./_chrome.mjs";
 
-const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const CHROME = findChrome();
 const outDir = process.argv[2];
 const base = process.argv[3] ?? "http://localhost:3000";
 mkdirSync(outDir, { recursive: true });
@@ -23,8 +24,8 @@ const env = Object.fromEntries(
     }),
 );
 
-const EMAIL = "belva.test@stitek.local";
-const PASSWORD = "Test1234!";
+const EMAIL = QA_EMAIL;
+const PASSWORD = QA_PASSWORD;
 
 const findings = [];
 const consoleErrors = [];

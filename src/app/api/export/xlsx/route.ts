@@ -4,7 +4,15 @@ import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
 import { fetchFilteredReports, parseFilters, periodeLabel } from "@/lib/report-query";
-import { EXPORT_HEADERS, exportFilename, toExportRow } from "@/lib/export";
+import { fetchLogbook } from "@/lib/logbook-query";
+import { fetchActiveProjects } from "@/lib/project-query";
+import {
+  EXPORT_HEADERS,
+  LOGBOOK_EXPORT_HEADERS,
+  exportFilename,
+  toExportRow,
+  toLogbookExportRow,
+} from "@/lib/export";
 import { computeStats, recapByKategori } from "@/lib/report-stats";
 import { ORG } from "@/lib/constants";
 import { fetchLetterhead } from "@/lib/letterhead";
@@ -52,7 +60,51 @@ export async function GET(request: Request) {
     .eq("id", user.id)
     .maybeSingle();
 
-  const filters = parseFilters(new URL(request.url).searchParams);
+  const url = new URL(request.url);
+
+  // Audit P2-2: export log book sebagai workbook sederhana.
+  if (url.searchParams.get("dataset") === "logbook") {
+    const [entries, projects] = await Promise.all([
+      fetchLogbook(supabase, user.id),
+      fetchActiveProjects(supabase, user.id),
+    ]);
+    const byId = new Map(projects.map((p) => [p.id, p.judul]));
+
+    const lb = new ExcelJS.Workbook();
+    lb.creator = "Task Report Magang";
+    lb.created = new Date();
+    const sheet = lb.addWorksheet("Log Book", { views: [{ state: "frozen", ySplit: 1 }] });
+    sheet.columns = [
+      { width: 6 }, { width: 13 }, { width: 60 }, { width: 44 },
+      { width: 26 }, { width: 28 }, { width: 14 }, { width: 32 },
+    ];
+    const lbHead = sheet.addRow([...LOGBOOK_EXPORT_HEADERS]);
+    lbHead.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+    lbHead.height = 22;
+    lbHead.eachCell((c) => {
+      c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: NAVY } };
+    });
+    for (const e of entries) {
+      const row = sheet.addRow(
+        toLogbookExportRow(e, e.project_id ? byId.get(e.project_id) ?? "" : ""),
+      );
+      row.alignment = { vertical: "top", wrapText: true };
+    }
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: 1, column: LOGBOOK_EXPORT_HEADERS.length },
+    };
+
+    const lbBuffer = await lb.xlsx.writeBuffer();
+    return new NextResponse(lbBuffer as ArrayBuffer, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${exportFilename("xlsx", "log-book")}"`,
+      },
+    });
+  }
+
+  const filters = parseFilters(url.searchParams);
   const [reports, letterhead] = await Promise.all([
     fetchFilteredReports(supabase, user.id, filters),
     fetchLetterhead(supabase, user.id),

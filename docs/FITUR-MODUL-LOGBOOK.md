@@ -174,3 +174,24 @@ Rincian lengkap: [UX-QA-AUDIT.md](UX-QA-AUDIT.md)
 - **Tampilan mobile**: tabel 6 kolom diganti kartu; nama dan jabatan pembimbing
   dikelompokkan dalam blok tersendiri.
 - **Toolbar cetak** menyertakan pengingat margin 2,5 cm dan A4 portrait.
+
+---
+
+## Pembaruan v1.0
+
+- **Proyek konsultasi multi-persona** (`/logbook/projects`): proyek →
+  konsultan (persona: peran, prioritas otoritas, bidang keahlian) → sesi
+  (entri logbook ber-`project_id` opsional) → saran per area dengan status ala
+  ADR (diusulkan/diadopsi/ditolak/di-supersede). Imutabilitas ditegakkan
+  trigger DB; keputusan konflik (termasuk sintesis) via RPC transaksional.
+- **Briefing Pack SBAR** per proyek (layar + `/print/briefing` A4) — bekal
+  konsultan baru: situasi, kronologi + keputusan diadopsi, konflik terbuka,
+  dan pertanyaan yang disiapkan mahasiswa.
+- **Alur konflik tiga-pilihan** saat mencatat saran pada area yang sudah punya
+  saran: menguatkan / bentrok / area lain.
+- **Pengerasan**: supervisor baru + entri = satu transaksi RPC (P0-4);
+  renumber atomik (P0-5); halaman detail `/logbook/[id]` (P2-1); export
+  CSV/XLSX `?dataset=logbook` (P2-2); rename pembimbing tersinkron atomik ke
+  salinan denormalisasi (P2-3); `updated_at` otomatis (P1-6).
+- **Formulir 2 TI-SOP-17/FM-01 tidak berubah** — seluruh kekayaan data baru
+  hidup di layar dan Briefing Pack.

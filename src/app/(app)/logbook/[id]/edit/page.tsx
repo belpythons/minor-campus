@@ -36,7 +36,6 @@ export default async function EditLogbookPage({ params }: { params: { id: string
         back={{ href: "/logbook", label: "Log Book" }}
       />
       <LogbookForm
-        userId={user.id}
         supervisors={supervisors}
         nextNomor={entry.nomor_urut}
         usedNomor={entries.map((e) => e.nomor_urut)}

@@ -31,7 +31,6 @@ export default async function NewLogbookPage({
         back={{ href: "/logbook", label: "Log Book" }}
       />
       <LogbookForm
-        userId={user.id}
         supervisors={supervisors}
         nextNomor={nextNomorUrut(entries)}
         usedNomor={entries.map((e) => e.nomor_urut)}

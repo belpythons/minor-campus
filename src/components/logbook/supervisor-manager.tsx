@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, fieldAria } from "@/components/shared/field";
 import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
-import { createClient } from "@/lib/supabase/client";
+import { deleteSupervisor, saveSupervisor } from "@/app/(app)/logbook/actions";
 import { describeError, notifyError, notifySuccess, notifyWarning } from "@/lib/notify";
 import { Collapsible, Stagger, StaggerItem } from "@/components/motion/motion-primitives";
 import type { Supervisor } from "@/lib/types";
@@ -42,13 +42,7 @@ const EMPTY_DRAFT = {
 const PERAN_OPTIONS = ["Pembimbing Utama", "Pendamping", "Penguji", "Mentor", "Rekan"];
 const NO_PERAN = "__none__";
 
-export function SupervisorManager({
-  rows,
-  userId,
-}: {
-  rows: SupervisorRow[];
-  userId: string;
-}) {
+export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
   const router = useRouter();
   const confirm = useConfirm();
 
@@ -95,12 +89,17 @@ export function SupervisorManager({
     }
 
     setBusy(true);
-    const supabase = createClient();
     const bidang = draft.bidang
       .split(",")
       .map((b) => b.trim())
       .filter(Boolean);
-    const payload = {
+
+    /*
+      Rename + sinkronisasi salinan denormalisasi di logbook_entries kini satu
+      transaksi RPC (P2-3) — salinan basi sunyi tidak mungkin lagi terjadi.
+    */
+    const result = await saveSupervisor({
+      id: editingId ?? undefined,
       nama: draft.nama.trim(),
       jabatan: draft.jabatan.trim() || null,
       departemen: draft.departemen.trim() || null,
@@ -108,39 +107,16 @@ export function SupervisorManager({
       prioritas: Math.max(1, Math.min(999, Number(draft.prioritas) || 100)),
       bidang_keahlian: bidang.length ? bidang : null,
       catatan_gaya: draft.catatanGaya.trim() || null,
-    };
+    });
 
-    const { error } = editingId
-      ? await supabase.from("supervisors").update(payload).eq("id", editingId)
-      : await supabase.from("supervisors").insert({ ...payload, user_id: userId });
-
-    if (error) {
-      notifyError("Gagal menyimpan pembimbing", { description: describeError(error) });
+    if ("error" in result) {
+      notifyError("Gagal menyimpan pembimbing", { description: describeError(result.error) });
       setBusy(false);
       return;
     }
 
-    /*
-      Existing log book rows keep a denormalised copy of the name and title so
-      an already-printed Formulir 2 stays reproducible. Renaming the supervisor
-      therefore has to update those rows too, or the printed form and the list
-      would disagree.
-    */
-    if (editingId) {
-      const { error: syncError } = await supabase
-        .from("logbook_entries")
-        .update({ pembimbing_nama: payload.nama, pembimbing_jabatan: payload.jabatan })
-        .eq("supervisor_id", editingId);
-
-      if (syncError) {
-        notifyWarning("Pembimbing tersimpan, tetapi entri lama belum ikut diperbarui", {
-          description: describeError(syncError),
-        });
-      }
-    }
-
     notifySuccess(editingId ? "Data pembimbing diperbarui" : "Pembimbing ditambahkan", {
-      description: payload.nama,
+      description: draft.nama.trim(),
     });
 
     setBusy(false);
@@ -163,11 +139,10 @@ export function SupervisorManager({
     if (!pendingDelete) return;
     confirm.setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.from("supervisors").delete().eq("id", pendingDelete.id);
+    const result = await deleteSupervisor(pendingDelete.id);
 
-    if (error) {
-      notifyError("Gagal menghapus pembimbing", { description: describeError(error) });
+    if ("error" in result) {
+      notifyError("Gagal menghapus pembimbing", { description: describeError(result.error) });
       confirm.close();
       return;
     }

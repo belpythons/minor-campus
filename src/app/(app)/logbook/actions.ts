@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import {
   ValidationError,
+  vDate,
   vEnum,
   vOptionalDate,
   vOptionalStr,
@@ -176,6 +177,150 @@ export async function decideConflict(
     p_losers: loserIds,
     p_alasan: alasan,
   });
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
+/* ------------------- Entri logbook (P0-2/P0-4 di Tahap 5) ------------------- */
+
+export interface LogbookEntryInput {
+  id?: string;
+  nomor_urut: number;
+  tanggal: string;
+  aktivitas: string;
+  supervisor_id: string | null;
+  baru_nama: string | null;
+  baru_jabatan: string | null;
+  baru_departemen: string | null;
+  hasil: string | null;
+  paraf: boolean;
+  project_id: string | null;
+}
+
+export async function saveLogbookEntry(
+  input: LogbookEntryInput,
+): Promise<ActionResultId> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Sesi berakhir. Silakan masuk kembali." };
+
+  try {
+    vDate(input.tanggal, "Tanggal konsultasi");
+    vRequiredStr(input.aktivitas, "Aktivitas", 10000);
+    if (!Number.isInteger(input.nomor_urut) || input.nomor_urut < 1) {
+      throw new ValidationError("Nomor urut harus angka 1 atau lebih.");
+    }
+    if (input.supervisor_id == null) {
+      vRequiredStr(input.baru_nama, "Nama pembimbing baru");
+    }
+  } catch (err) {
+    if (err instanceof ValidationError) return { error: err.message };
+    throw err;
+  }
+
+  const { data, error } = await supabase.rpc("save_logbook_entry", {
+    p_id: input.id ?? null,
+    p_nomor: input.nomor_urut,
+    p_tanggal: input.tanggal,
+    p_aktivitas: input.aktivitas,
+    p_supervisor: input.supervisor_id,
+    p_baru_nama: input.baru_nama,
+    p_baru_jabatan: input.baru_jabatan,
+    p_baru_departemen: input.baru_departemen,
+    p_hasil: input.hasil,
+    p_paraf: input.paraf,
+    p_project: input.project_id,
+  });
+  if (error) return { error: error.message };
+  return { ok: true, id: data as string };
+}
+
+export async function deleteLogbookEntry(id: string): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Sesi berakhir. Silakan masuk kembali." };
+
+  const { error } = await supabase
+    .from("logbook_entries")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
+/** P0-5: renumber atomik via RPC — mengembalikan jumlah baris yang berubah. */
+export async function renumberLogbook(): Promise<{ ok: true; changed: number } | { error: string }> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Sesi berakhir. Silakan masuk kembali." };
+
+  const { data, error } = await supabase.rpc("renumber_logbook");
+  if (error) return { error: error.message };
+  return { ok: true, changed: (data as number) ?? 0 };
+}
+
+/* ---------------------- Pembimbing / persona (P2-3) ---------------------- */
+
+export interface SupervisorInput {
+  id?: string;
+  nama: string;
+  jabatan: string | null;
+  departemen: string | null;
+  peran: string | null;
+  prioritas: number;
+  bidang_keahlian: string[] | null;
+  catatan_gaya: string | null;
+}
+
+export async function saveSupervisor(input: SupervisorInput): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Sesi berakhir. Silakan masuk kembali." };
+
+  let nama;
+  try {
+    nama = vRequiredStr(input.nama, "Nama pembimbing");
+  } catch (err) {
+    if (err instanceof ValidationError) return { error: err.message };
+    throw err;
+  }
+
+  if (input.id) {
+    // Rename + sinkronisasi salinan denormalisasi dalam satu transaksi RPC.
+    const { error } = await supabase.rpc("update_supervisor_sync", {
+      p_id: input.id,
+      p_nama: nama,
+      p_jabatan: input.jabatan,
+      p_departemen: input.departemen,
+      p_peran: input.peran,
+      p_prioritas: input.prioritas,
+      p_bidang: input.bidang_keahlian,
+      p_catatan: input.catatan_gaya,
+    });
+    if (error) return { error: error.message };
+    return { ok: true };
+  }
+
+  const { error } = await supabase.from("supervisors").insert({
+    user_id: user.id,
+    nama,
+    jabatan: vOptionalStr(input.jabatan, "Jabatan"),
+    departemen: vOptionalStr(input.departemen, "Departemen"),
+    peran: vOptionalStr(input.peran, "Peran", 60),
+    prioritas: Math.max(1, Math.min(999, input.prioritas || 100)),
+    bidang_keahlian: input.bidang_keahlian?.length ? input.bidang_keahlian : null,
+    catatan_gaya: vOptionalStr(input.catatan_gaya, "Catatan gaya", 2000),
+  });
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
+export async function deleteSupervisor(id: string): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { error: "Sesi berakhir. Silakan masuk kembali." };
+
+  const { error } = await supabase
+    .from("supervisors")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", user.id);
   if (error) return { error: error.message };
   return { ok: true };
 }

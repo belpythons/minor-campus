@@ -26,7 +26,7 @@ export default async function SupervisorsPage() {
         description="Daftar orang berpangkat yang Anda ajak konsultasi selama kerja praktek."
         back={{ href: "/logbook", label: "Log Book" }}
       />
-      <SupervisorManager rows={rows} userId={user.id} />
+      <SupervisorManager rows={rows} />
     </>
   );
 }

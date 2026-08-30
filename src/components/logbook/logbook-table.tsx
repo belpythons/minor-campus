@@ -31,7 +31,7 @@ import { FilterBar } from "@/components/shared/filter-bar";
 import { Pagination, paginate } from "@/components/shared/pagination";
 import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { useDebounced, useUrlFilters } from "@/hooks/use-url-filters";
-import { createClient } from "@/lib/supabase/client";
+import { renumberLogbook } from "@/app/(app)/logbook/actions";
 import { formatHariTanggal } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
 import type { LogbookEntry, Project, Supervisor } from "@/lib/types";
@@ -108,47 +108,26 @@ export function LogbookTable({
 
   const { rows, safePage, pageCount } = paginate(filtered, page);
 
-  /** Rewrites nomor_urut to 1..n following the current date order. */
+  /**
+   * Rewrites nomor_urut to 1..n following the date order — one atomic RPC
+   * (P0-5); an interruption can no longer strand rows on temporary numbers.
+   */
   async function applyRenumber() {
     renumber.setLoading(true);
 
-    const ordered = [...entries].sort(
-      (a, b) => a.tanggal.localeCompare(b.tanggal) || a.nomor_urut - b.nomor_urut,
-    );
+    const result = await renumberLogbook();
 
-    const supabase = createClient();
-
-    try {
-      /*
-        Two passes with a large temporary offset: nomor_urut has no unique
-        constraint today, but writing straight to the target numbers would
-        still momentarily duplicate values mid-update.
-      */
-      for (const [i, e] of ordered.entries()) {
-        const { error } = await supabase
-          .from("logbook_entries")
-          .update({ nomor_urut: 10000 + i })
-          .eq("id", e.id);
-        if (error) throw error;
-      }
-
-      for (const [i, e] of ordered.entries()) {
-        const { error } = await supabase
-          .from("logbook_entries")
-          .update({ nomor_urut: i + 1 })
-          .eq("id", e.id);
-        if (error) throw error;
-      }
-
-      notifySuccess("Penomoran dirapikan", {
-        description: `${ordered.length} entri diberi nomor 1–${ordered.length} urut tanggal.`,
-      });
+    if ("error" in result) {
+      notifyError("Gagal merapikan penomoran", { description: describeError(result.error) });
       renumber.close();
-      router.refresh();
-    } catch (err) {
-      notifyError("Gagal merapikan penomoran", { description: describeError(err) });
-      renumber.close();
+      return;
     }
+
+    notifySuccess("Penomoran dirapikan", {
+      description: `${entries.length} entri diberi nomor 1–${entries.length} urut tanggal.`,
+    });
+    renumber.close();
+    router.refresh();
   }
 
   if (entries.length === 0) {
@@ -310,12 +289,17 @@ export function LogbookTable({
                     )}
                   </div>
 
-                  <Button asChild variant="outline" size="sm" className="mt-3 w-full">
-                    <Link href={`/logbook/${e.id}/edit`}>
-                      <Pencil aria-hidden />
-                      Ubah Entri
-                    </Link>
-                  </Button>
+                  <div className="mt-3 flex gap-2">
+                    <Button asChild variant="outline" size="sm" className="flex-1">
+                      <Link href={`/logbook/${e.id}`}>Detail</Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm" className="flex-1">
+                      <Link href={`/logbook/${e.id}/edit`}>
+                        <Pencil aria-hidden />
+                        Ubah Entri
+                      </Link>
+                    </Button>
+                  </div>
                 </StaggerItem>
               ))}
             </Stagger>
@@ -377,12 +361,17 @@ export function LogbookTable({
                       </TableCell>
 
                       <TableCell className="text-right">
-                        <Button asChild variant="outline" size="xs">
-                          <Link href={`/logbook/${e.id}/edit`}>
-                            <Pencil aria-hidden />
-                            Ubah
-                          </Link>
-                        </Button>
+                        <div className="flex justify-end gap-1.5">
+                          <Button asChild variant="outline" size="xs">
+                            <Link href={`/logbook/${e.id}`}>Detail</Link>
+                          </Button>
+                          <Button asChild variant="outline" size="xs">
+                            <Link href={`/logbook/${e.id}/edit`}>
+                              <Pencil aria-hidden />
+                              Ubah
+                            </Link>
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

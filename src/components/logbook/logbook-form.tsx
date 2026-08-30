@@ -32,6 +32,7 @@ import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { UnsavedBar } from "@/components/shared/unsaved-bar";
 import { QuickAdvice } from "@/components/logbook/quick-advice";
 import { createClient } from "@/lib/supabase/client";
+import { deleteLogbookEntry, saveLogbookEntry } from "@/app/(app)/logbook/actions";
 import { todayISO } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
 import { useDirtyState, useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -56,7 +57,6 @@ interface FormState {
 }
 
 export function LogbookForm({
-  userId,
   supervisors,
   nextNomor,
   /** Running numbers already in use, so a clash can be flagged before saving. */
@@ -65,7 +65,6 @@ export function LogbookForm({
   projects = [],
   defaultProjectId = null,
 }: {
-  userId: string;
   supervisors: Supervisor[];
   nextNomor: number;
   usedNomor: number[];
@@ -170,63 +169,40 @@ export function LogbookForm({
     }
 
     setBusy(true);
-    const supabase = createClient();
 
     try {
-      let sup = supervisors.find((s) => s.id === form.supervisorId) ?? null;
-
-      if (addingNew) {
-        const { data, error } = await supabase
-          .from("supervisors")
-          .insert({
-            user_id: userId,
-            nama: form.baruNama.trim(),
-            jabatan: form.baruJabatan.trim() || null,
-            departemen: form.baruDepartemen.trim() || null,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        sup = data as Supervisor;
-      }
-
-      if (!sup) throw new Error("Pilih pembimbing terlebih dahulu.");
-
+      const sup = supervisors.find((s) => s.id === form.supervisorId) ?? null;
       const projectId = form.projectId === NO_PROJECT ? null : form.projectId;
-      const payload = {
-        user_id: userId,
+
+      // Supervisor baru + entri tersimpan dalam SATU transaksi RPC (P0-4).
+      const result = await saveLogbookEntry({
+        id: initial?.id,
         nomor_urut: nomorValue,
         tanggal: form.tanggal,
-        aktivitas_pekerjaan: form.aktivitas.trim(),
-        // Denormalised so an already-printed Formulir 2 keeps its wording.
-        pembimbing_nama: sup.nama,
-        pembimbing_jabatan: sup.jabatan,
-        supervisor_id: sup.id,
-        hasil_tindak_lanjut: form.hasil.trim() || null,
-        paraf_status: form.paraf,
+        aktivitas: form.aktivitas.trim(),
+        supervisor_id: addingNew ? null : (sup?.id ?? null),
+        baru_nama: addingNew ? form.baruNama.trim() : null,
+        baru_jabatan: addingNew ? form.baruJabatan.trim() || null : null,
+        baru_departemen: addingNew ? form.baruDepartemen.trim() || null : null,
+        hasil: form.hasil.trim() || null,
+        paraf: form.paraf,
         project_id: projectId,
-      };
+      });
+      if ("error" in result) throw new Error(result.error);
 
-      const { data: savedRow, error } = isEdit
-        ? await supabase
-            .from("logbook_entries")
-            .update(payload)
-            .eq("id", initial!.id)
-            .select("id")
-            .maybeSingle()
-        : await supabase.from("logbook_entries").insert(payload).select("id").maybeSingle();
-
-      if (error) throw error;
-
+      const namaPembimbing = addingNew ? form.baruNama.trim() : (sup?.nama ?? "");
       notifySuccess(isEdit ? "Entri log book diperbarui" : "Entri log book tersimpan", {
-        description: `No. ${payload.nomor_urut} · ${sup.nama}`,
+        description: `No. ${nomorValue} · ${namaPembimbing}`,
       });
 
       // Sesi ber-proyek → tawarkan mencatat 0..n saran dari sesi ini dulu.
-      if (!isEdit && projectId && savedRow?.id) {
+      if (!isEdit && projectId) {
         setBusy(false);
-        setSavedSession({ entryId: savedRow.id, projectId, supervisorId: sup.id });
+        setSavedSession({
+          entryId: result.id,
+          projectId,
+          supervisorId: addingNew ? null : (sup?.id ?? null),
+        });
         return;
       }
 
@@ -242,11 +218,10 @@ export function LogbookForm({
     if (!initial) return;
     confirm.setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.from("logbook_entries").delete().eq("id", initial.id);
+    const result = await deleteLogbookEntry(initial.id);
 
-    if (error) {
-      notifyError("Gagal menghapus entri", { description: describeError(error) });
+    if ("error" in result) {
+      notifyError("Gagal menghapus entri", { description: describeError(result.error) });
       confirm.close();
       return;
     }

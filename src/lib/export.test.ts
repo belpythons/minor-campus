@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { EXPORT_HEADERS, buildCsv, exportFilename, toExportRow } from "./export";
-import type { InternshipReport } from "./types";
+import {
+  EXPORT_HEADERS,
+  LOGBOOK_EXPORT_HEADERS,
+  buildCsv,
+  buildCsvFromRows,
+  exportFilename,
+  toExportRow,
+  toLogbookExportRow,
+} from "./export";
+import type { InternshipReport, LogbookEntry } from "./types";
 
 function report(overrides: Partial<InternshipReport> = {}): InternshipReport {
   return {
@@ -58,5 +66,42 @@ describe("buildCsv", () => {
 describe("exportFilename", () => {
   it("uses the laporan-magang prefix with a local date stamp", () => {
     expect(exportFilename("csv")).toMatch(/^laporan-magang-\d{4}-\d{2}-\d{2}\.csv$/);
+  });
+
+  it("accepts a custom letterhead prefix", () => {
+    expect(exportFilename("xlsx", "log-book")).toMatch(/^log-book-\d{4}-\d{2}-\d{2}\.xlsx$/);
+  });
+});
+
+describe("logbook export (P2-2)", () => {
+  const entry: LogbookEntry = {
+    id: "e1",
+    user_id: "u1",
+    nomor_urut: 3,
+    tanggal: "2026-08-20",
+    aktivitas_pekerjaan: "Konsultasi metodologi",
+    pembimbing_nama: "Dr. Ratna",
+    pembimbing_jabatan: "Dosen Pembimbing",
+    paraf_status: true,
+    supervisor_id: null,
+    hasil_tindak_lanjut: null,
+    project_id: "p1",
+    updated_at: null,
+    created_at: "2026-08-20T00:00:00Z",
+  };
+
+  it("maps an entry to the 8 logbook columns", () => {
+    const row = toLogbookExportRow(entry, "Penyusunan Jurnal");
+    expect(row).toEqual([
+      3, "2026-08-20", "Konsultasi metodologi", "", "Dr. Ratna",
+      "Dosen Pembimbing", "Sudah diparaf", "Penyusunan Jurnal",
+    ]);
+    expect(row).toHaveLength(LOGBOOK_EXPORT_HEADERS.length);
+  });
+
+  it("builds a BOM-prefixed CSV from generic rows", () => {
+    const csv = buildCsvFromRows(LOGBOOK_EXPORT_HEADERS, [toLogbookExportRow(entry)]);
+    expect(csv.startsWith("﻿")).toBe(true);
+    expect(csv).toContain("Konsultasi metodologi");
   });
 });

@@ -5,8 +5,9 @@
  */
 import { mkdirSync } from "node:fs";
 import puppeteer from "puppeteer-core";
+import { QA_EMAIL, QA_PASSWORD, findChrome } from "./_chrome.mjs";
 
-const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+const CHROME = findChrome();
 const outDir = process.argv[2];
 const base = process.argv[3] ?? "http://localhost:3000";
 mkdirSync(outDir, { recursive: true });
@@ -20,23 +21,34 @@ const page = await browser.newPage();
 await page.setViewport({ width: 1360, height: 900 });
 
 await page.goto(`${base}/login`, { waitUntil: "networkidle2" });
-await page.type('input[type="email"]', "belva.test@stitek.local");
-await page.type('input[type="password"]', "Test1234!");
+await page.type('input[type="email"]', QA_EMAIL);
+await page.type('input[type="password"]', QA_PASSWORD);
 await Promise.all([
   page.waitForNavigation({ waitUntil: "networkidle2" }).catch(() => {}),
   page.click('button[type="submit"]'),
 ]);
 await new Promise((r) => setTimeout(r, 1500));
 
+// Briefing Pack (dok 04) ikut dicetak bila pengguna punya minimal satu proyek.
+await page.goto(`${base}/logbook/projects`, { waitUntil: "networkidle2" });
+const projectId = await page.evaluate(() => {
+  const a = document.querySelector('a[href^="/logbook/projects/"]');
+  return a ? a.getAttribute("href").split("/").pop() : null;
+});
+
+const docs = [
+  ["formulir2", "/print/formulir2"],
+  ["rekap-magang", "/print/rekap-magang?dari=&sampai=&kategori=&foto=1&komentar=1"],
+];
+if (projectId) docs.push(["briefing", `/print/briefing?project=${projectId}`]);
+else console.log("skip briefing (belum ada proyek)");
+
 // Exercise the dark theme too: the print sheet must ignore it entirely.
 for (const theme of ["light", "dark"]) {
   await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: theme }]);
   await page.evaluate((t) => localStorage.setItem("theme", t), theme);
 
-  for (const [slug, path] of [
-    ["formulir2", "/print/formulir2"],
-    ["rekap-magang", "/print/rekap-magang?dari=&sampai=&kategori=&foto=1&komentar=1"],
-  ]) {
+  for (const [slug, path] of docs) {
     await page.goto(base + path, { waitUntil: "networkidle2" });
     await new Promise((r) => setTimeout(r, 800));
 

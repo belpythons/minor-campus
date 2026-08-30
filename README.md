@@ -104,15 +104,18 @@ Pada dashboard Supabase → **Authentication → Providers → Email**: matikan 
 | `node scripts/seed-test-user.mjs` | Membuat akun uji `belva.test@stitek.local` / `Test1234!` (sudah terkonfirmasi) |
 | `node scripts/seed-demo-data.mjs` | Mengisi 6 laporan, 2 pembimbing, 4 entri log book untuk akun uji |
 | `node scripts/generate-pwa-icons.mjs` | Membangkitkan seluruh ikon PWA dari `public/logo.png` |
-| `node scripts/_qa.mjs <outDir>` | Harness QA: login sungguhan, 29 tangkapan layar, 10 pemeriksaan perilaku |
-| `node scripts/_pdf.mjs <outDir>` | Mencetak kedua dokumen resmi ke PDF pada tema terang dan gelap |
+| `node scripts/ingest-branding-kb.mjs` | Meng-embed korpus `docs/branding-kb/*.md` ke tabel `branding_chunks` (butuh `GEMINI_API_KEY`) |
+| `node scripts/_qa.mjs <outDir>` | Harness QA: login sungguhan, tangkapan layar, pemeriksaan perilaku |
+| `node scripts/_pdf.mjs <outDir>` | Mencetak dokumen resmi (formulir2, rekap, briefing) ke PDF pada tema terang dan gelap |
 
 Skrip Supabase memakai `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_DB_URL` dan
 **tidak** pernah dijalankan oleh aplikasi. Hapus akun uji lewat dashboard
 Supabase sebelum dipakai sungguhan.
 
-Dua skrip berawalan `_` butuh server `npm run dev` yang sedang berjalan, dan
-Chrome di `C:\Program Files\Google\Chrome\Application\chrome.exe`.
+Dua skrip berawalan `_` butuh server `npm run dev` yang sedang berjalan.
+Lokasi Chrome dicari otomatis lintas-OS (Windows/macOS/Linux) dan dapat
+di-override dengan env `CHROME_PATH`; kredensial uji dengan `QA_EMAIL` /
+`QA_PASSWORD`.
 
 ---
 
@@ -124,21 +127,25 @@ Chrome di `C:\Program Files\Google\Chrome\Application\chrome.exe`.
 /dashboard                             ringkasan tiga modul
 /account                               profil + blok pengesahan (mengisi kedua kop surat)
 
-/skm · /skm/new · /skm/[id]/edit       portofolio SKM
-/skm/linkedin                          generator teks LinkedIn & Markdown
+/skm · /skm/new · /skm/[id]/edit       portofolio SKM (persona kampus: ITS/UNAIR/Tel-U/BINUS/Kustom)
+/skm/linkedin                          generator teks LinkedIn & Markdown (+ AI RAG bila GEMINI_API_KEY diset)
+/api/skm/linkedin (+/status)           route AI server-only (Gemini; fallback template tanpa key)
 
 /reports/feed                          daftar kegiatan seluruh peserta
 /reports · /reports/new                laporan sendiri
 /reports/[id] · /reports/[id]/edit     detail + komentar · ubah
 /reports/export                        panel filter ekspor
-/print/rekap-magang                    dokumen cetak A4 PT Badak NGL
-/api/export/xlsx · /api/export/csv     unduhan data
+/print/rekap-magang                    dokumen cetak A4 (kop mengikuti setelan "Kop Surat & Logo")
+/api/export/xlsx · /api/export/csv     unduhan data (?dataset=logbook untuk log book)
 
-/logbook · /logbook/new                log book kerja praktek
-/logbook/[id]/edit                     ubah entri
-/logbook/supervisors                   kelola pembimbing
+/logbook · /logbook/new                log book kerja praktek (+ select proyek opsional)
+/logbook/[id] · /logbook/[id]/edit     detail entri · ubah
+/logbook/supervisors                   kelola pembimbing (persona: peran, prioritas, bidang)
 /logbook/rekap                         rekap konsultasi per atasan
-/print/formulir2                       dokumen cetak A4 Formulir 2 STITEK
+/logbook/projects · /projects/[id]     proyek konsultasi multi-persona + papan saran ADR
+/logbook/projects/[id]/briefing        Briefing Pack SBAR (layar)
+/print/formulir2                       dokumen cetak A4 Formulir 2 (kop mengikuti setelan)
+/print/briefing?project=<id>           dokumen cetak A4 Briefing Pack SBAR
 ```
 
 Seluruh rute memerlukan sesi; `src/middleware.ts` menyegarkan cookie Supabase,

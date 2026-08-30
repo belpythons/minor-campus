@@ -196,3 +196,17 @@ Rincian lengkap: [UX-QA-AUDIT.md](UX-QA-AUDIT.md)
   dan dialog konfirmasi saat menghapus.
 - **Tampilan mobile**: tabel 6–7 kolom diganti kartu.
 - **Toolbar cetak** menyertakan satu baris instruksi menyimpan sebagai PDF.
+
+---
+
+## Pembaruan v1.0
+
+- **Kop surat fleksibel**: identitas kop kedua dokumen cetak (baris kop, judul
+  dokumen, identitas kampus Formulir 2, kode SOP, lokasi ttd, logo) kini
+  setelan per-user di kartu "Kop Surat & Logo" halaman `/account` — lengkap
+  dengan live preview dan tombol reset. Tanpa setelan, output identik dengan
+  identitas bawaan PT Badak NGL / STITEK (diverifikasi terhadap baseline PDF).
+- Resolver tunggal `src/lib/letterhead.ts`; logo unggahan tersimpan berversi di
+  bucket `org-logos` (cache SW/CDN selalu ter-bypass); logo landscape didukung
+  lewat layout adaptif; export Excel kini ber-kop bergambar dan nama file
+  mengikuti judul dokumen.
