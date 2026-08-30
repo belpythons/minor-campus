@@ -165,6 +165,220 @@ CREATE TABLE IF NOT EXISTS letterhead_settings (
     updated_at    TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW())
 );
 
+-- ---------------------------------------------------------------------
+-- 9. Persona kampus SKM   (EXTENSION — dok 01)
+--    institution_presets + skm_point_rules memindahkan SKM_POINT_RULES
+--    compile-time menjadi data runtime. Seed di bawah; persona 'custom'
+--    adalah salinan 1:1 aturan bawaan aplikasi (nol regresi).
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS institution_presets (
+    id          VARCHAR(40) PRIMARY KEY,           -- 'its-skem' | 'unair-skp' | 'telu-tak' | 'binus-sat' | 'custom'
+    nama        VARCHAR(120) NOT NULL,
+    deskripsi   TEXT,
+    target_poin INT NOT NULL,
+    target_jam_sosial INT,                         -- hanya BINUS: 30
+    sumber_url  TEXT,
+    verifikasi  VARCHAR(20) NOT NULL DEFAULT 'sekunder'   -- 'resmi' | 'sekunder'
+);
+
+CREATE TABLE IF NOT EXISTS skm_point_rules (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    preset_id   VARCHAR(40) NOT NULL REFERENCES institution_presets(id) ON DELETE CASCADE,
+    kategori    VARCHAR(100) NOT NULL,
+    tingkat     VARCHAR(160) NOT NULL,
+    poin        INT NOT NULL CHECK (poin >= 0),
+    cap_kategori INT,                              -- batas poin per kategori (belum dipakai seed)
+    equivalence_key VARCHAR(80),                   -- kunci semantik lintas persona (dok 01 §3.3)
+    urutan      INT NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX IF NOT EXISTS skm_point_rules_unik
+    ON skm_point_rules (preset_id, kategori, tingkat);
+
+ALTER TABLE institution_presets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE skm_point_rules     ENABLE ROW LEVEL SECURITY;
+
+-- Baca untuk semua pengguna terautentikasi; tulis hanya lewat seed/service role.
+DROP POLICY IF EXISTS "presets readable" ON institution_presets;
+CREATE POLICY "presets readable" ON institution_presets
+    FOR SELECT TO authenticated USING (TRUE);
+DROP POLICY IF EXISTS "point rules readable" ON skm_point_rules;
+CREATE POLICY "point rules readable" ON skm_point_rules
+    FOR SELECT TO authenticated USING (TRUE);
+
+-- Seed persona (angka target diverifikasi ulang 30 Agu 2026; bobot rule kampus
+-- adalah estimasi tersekala dari anchor pedoman → verifikasi='sekunder').
+INSERT INTO institution_presets (id, nama, deskripsi, target_poin, target_jam_sosial, sumber_url, verifikasi) VALUES
+  ('custom',    'Kustom (bawaan aplikasi)', 'Aturan poin bawaan Student Hub — baseline STITEK Bontang.', 50, NULL,
+   NULL, 'resmi'),
+  ('its-skem',  'ITS — SKEM', 'Satuan Kegiatan Ekstrakurikuler Mahasiswa ITS. Minimum yudisium S1 1000 poin (D3 750); predikat Cukup s.d. Sangat Baik. Bobot per kegiatan = estimasi tersekala dari anchor pedoman.', 1000, NULL,
+   'https://www.its.ac.id/it/id/mahasiswa/konsep-satuan-kredit-ekstrakulikuler-mahasiswa/', 'sekunder'),
+  ('unair-skp', 'UNAIR — SKP', 'Sistem Kredit Prestasi UNAIR. Minimum S1 75 SKP (wajib universitas 35 + bidang pilihan ≥40); direkap dalam TKM, prasyarat wisuda. Bobot per kegiatan mengikuti pedoman fakultas (contoh: FIKKIA).', 75, NULL,
+   'https://unair.ac.id/apa-itu-skp-unair-ini-penjelasannya/', 'sekunder'),
+  ('telu-tak',  'Telkom University — TAK', 'Transkrip Aktivitas Kemahasiswaan Tel-U (KR 2971/2014). Nilai TAK minimum 60 adalah syarat pendaftaran sidang Tugas Akhir.', 60, NULL,
+   'https://telkomuniversity.ac.id/en/transkrip-aktivitas-kemahasiswaan/', 'sekunder'),
+  ('binus-sat', 'BINUS — SAT', 'Student Activity Transcript BINUS. Syarat lulus: minimum 120 SAT points + 30 jam kegiatan sosial (community service hours).', 120, 30,
+   'https://student.binus.ac.id/sat/', 'sekunder')
+ON CONFLICT (id) DO UPDATE SET
+  nama = EXCLUDED.nama, deskripsi = EXCLUDED.deskripsi, target_poin = EXCLUDED.target_poin,
+  target_jam_sosial = EXCLUDED.target_jam_sosial, sumber_url = EXCLUDED.sumber_url,
+  verifikasi = EXCLUDED.verifikasi;
+
+-- Rule seed: 18 tingkat × 5 persona; equivalence_key identik lintas persona.
+INSERT INTO skm_point_rules (preset_id, kategori, tingkat, poin, equivalence_key, urutan) VALUES
+  -- ===== custom — salinan 1:1 SKM_POINT_RULES (src/lib/skm-points.ts) =====
+  ('custom', 'Prestasi / Kejuaraan', 'Internasional — Juara 1/2/3', 25, 'juara-internasional', 1),
+  ('custom', 'Prestasi / Kejuaraan', 'Nasional — Juara 1/2/3', 20, 'juara-nasional', 2),
+  ('custom', 'Prestasi / Kejuaraan', 'Regional / Provinsi — Juara 1/2/3', 15, 'juara-regional', 3),
+  ('custom', 'Prestasi / Kejuaraan', 'Internal Kampus — Juara 1/2/3', 10, 'juara-internal', 4),
+  ('custom', 'Prestasi / Kejuaraan', 'Finalis / Peserta', 5, 'finalis-peserta', 5),
+  ('custom', 'Pengalaman Organisasi', 'Ketua / Wakil Ketua', 12, 'ketua-organisasi', 1),
+  ('custom', 'Pengalaman Organisasi', 'Pengurus Inti (Sekretaris / Bendahara)', 10, 'pengurus-inti', 2),
+  ('custom', 'Pengalaman Organisasi', 'Ketua Divisi', 8, 'ketua-divisi', 3),
+  ('custom', 'Pengalaman Organisasi', 'Anggota Pengurus', 5, 'anggota-pengurus', 4),
+  ('custom', 'Sertifikasi / Lisensi', 'Internasional (AWS, Google, Cisco, dsb.)', 15, 'sertifikasi-internasional', 1),
+  ('custom', 'Sertifikasi / Lisensi', 'Nasional (BNSP, Dicoding, dsb.)', 10, 'sertifikasi-nasional', 2),
+  ('custom', 'Sertifikasi / Lisensi', 'Internal / Lembaga Pelatihan', 5, 'sertifikasi-internal', 3),
+  ('custom', 'Kepanitiaan Event', 'Project Officer / Ketua Panitia', 8, 'ketua-panitia', 1),
+  ('custom', 'Kepanitiaan Event', 'Koordinator Sie', 5, 'koordinator-sie', 2),
+  ('custom', 'Kepanitiaan Event', 'Anggota Panitia', 3, 'anggota-panitia', 3),
+  ('custom', 'Workshop / Seminar / Pelatihan', 'Pembicara / Narasumber', 10, 'pembicara', 1),
+  ('custom', 'Workshop / Seminar / Pelatihan', 'Peserta — Internasional / Nasional', 4, 'peserta-eksternal', 2),
+  ('custom', 'Workshop / Seminar / Pelatihan', 'Peserta — Regional / Internal', 2, 'peserta-internal', 3),
+  -- ===== its-skem — skala ribuan (anchor: juara regional 750, juara institut 500, ketua organisasi SK Rektor 500) =====
+  ('its-skem', 'Prestasi / Kejuaraan', 'Internasional — Juara/Finalis', 1000, 'juara-internasional', 1),
+  ('its-skem', 'Prestasi / Kejuaraan', 'Nasional — Juara 1/2/3', 850, 'juara-nasional', 2),
+  ('its-skem', 'Prestasi / Kejuaraan', 'Regional — Juara 1/2/3', 750, 'juara-regional', 3),
+  ('its-skem', 'Prestasi / Kejuaraan', 'Tingkat Institut — Juara 1/2/3', 500, 'juara-internal', 4),
+  ('its-skem', 'Prestasi / Kejuaraan', 'Finalis / Peserta Kompetisi', 250, 'finalis-peserta', 5),
+  ('its-skem', 'Pengalaman Organisasi', 'Ketua Organisasi (SK Rektor)', 500, 'ketua-organisasi', 1),
+  ('its-skem', 'Pengalaman Organisasi', 'Pengurus Inti', 400, 'pengurus-inti', 2),
+  ('its-skem', 'Pengalaman Organisasi', 'Ketua Departemen / Divisi', 300, 'ketua-divisi', 3),
+  ('its-skem', 'Pengalaman Organisasi', 'Staf / Anggota Pengurus', 200, 'anggota-pengurus', 4),
+  ('its-skem', 'Sertifikasi / Lisensi', 'Sertifikasi Internasional', 500, 'sertifikasi-internasional', 1),
+  ('its-skem', 'Sertifikasi / Lisensi', 'Sertifikasi Nasional', 300, 'sertifikasi-nasional', 2),
+  ('its-skem', 'Sertifikasi / Lisensi', 'Sertifikasi Internal / Pelatihan', 150, 'sertifikasi-internal', 3),
+  ('its-skem', 'Kepanitiaan Event', 'Ketua Panitia', 300, 'ketua-panitia', 1),
+  ('its-skem', 'Kepanitiaan Event', 'Koordinator Sie', 200, 'koordinator-sie', 2),
+  ('its-skem', 'Kepanitiaan Event', 'Anggota Panitia', 100, 'anggota-panitia', 3),
+  ('its-skem', 'Workshop / Seminar / Pelatihan', 'Pembicara / Narasumber', 300, 'pembicara', 1),
+  ('its-skem', 'Workshop / Seminar / Pelatihan', 'Peserta — Internasional / Nasional', 100, 'peserta-eksternal', 2),
+  ('its-skem', 'Workshop / Seminar / Pelatihan', 'Peserta — Regional / Internal', 50, 'peserta-internal', 3),
+  -- ===== unair-skp — skala puluhan-ratusan (pedoman fakultas, contoh FIKKIA) =====
+  ('unair-skp', 'Prestasi / Kejuaraan', 'Internasional — Juara 1/2/3', 100, 'juara-internasional', 1),
+  ('unair-skp', 'Prestasi / Kejuaraan', 'Nasional — Juara 1/2/3', 75, 'juara-nasional', 2),
+  ('unair-skp', 'Prestasi / Kejuaraan', 'Regional / Provinsi — Juara 1/2/3', 50, 'juara-regional', 3),
+  ('unair-skp', 'Prestasi / Kejuaraan', 'Internal Kampus — Juara 1/2/3', 30, 'juara-internal', 4),
+  ('unair-skp', 'Prestasi / Kejuaraan', 'Finalis / Peserta', 15, 'finalis-peserta', 5),
+  ('unair-skp', 'Pengalaman Organisasi', 'Ketua / Wakil Ketua', 40, 'ketua-organisasi', 1),
+  ('unair-skp', 'Pengalaman Organisasi', 'Pengurus Inti', 30, 'pengurus-inti', 2),
+  ('unair-skp', 'Pengalaman Organisasi', 'Ketua Divisi / Departemen', 25, 'ketua-divisi', 3),
+  ('unair-skp', 'Pengalaman Organisasi', 'Anggota Pengurus', 15, 'anggota-pengurus', 4),
+  ('unair-skp', 'Sertifikasi / Lisensi', 'Sertifikasi Internasional', 50, 'sertifikasi-internasional', 1),
+  ('unair-skp', 'Sertifikasi / Lisensi', 'Sertifikasi Nasional', 30, 'sertifikasi-nasional', 2),
+  ('unair-skp', 'Sertifikasi / Lisensi', 'Sertifikasi Internal / Pelatihan', 15, 'sertifikasi-internal', 3),
+  ('unair-skp', 'Kepanitiaan Event', 'Ketua Panitia', 25, 'ketua-panitia', 1),
+  ('unair-skp', 'Kepanitiaan Event', 'Koordinator Sie', 15, 'koordinator-sie', 2),
+  ('unair-skp', 'Kepanitiaan Event', 'Anggota Panitia', 10, 'anggota-panitia', 3),
+  ('unair-skp', 'Workshop / Seminar / Pelatihan', 'Pembicara / Narasumber', 30, 'pembicara', 1),
+  ('unair-skp', 'Workshop / Seminar / Pelatihan', 'Peserta — Internasional / Nasional', 10, 'peserta-eksternal', 2),
+  ('unair-skp', 'Workshop / Seminar / Pelatihan', 'Peserta — Regional / Internal', 5, 'peserta-internal', 3),
+  -- ===== telu-tak — skala puluhan, gerbang sidang TA 60 =====
+  ('telu-tak', 'Prestasi / Kejuaraan', 'Internasional — Juara 1/2/3', 30, 'juara-internasional', 1),
+  ('telu-tak', 'Prestasi / Kejuaraan', 'Nasional — Juara 1/2/3', 20, 'juara-nasional', 2),
+  ('telu-tak', 'Prestasi / Kejuaraan', 'Regional / Provinsi — Juara 1/2/3', 15, 'juara-regional', 3),
+  ('telu-tak', 'Prestasi / Kejuaraan', 'Internal Kampus — Juara 1/2/3', 10, 'juara-internal', 4),
+  ('telu-tak', 'Prestasi / Kejuaraan', 'Finalis / Peserta', 5, 'finalis-peserta', 5),
+  ('telu-tak', 'Pengalaman Organisasi', 'Ketua / Wakil Ketua', 15, 'ketua-organisasi', 1),
+  ('telu-tak', 'Pengalaman Organisasi', 'Pengurus Inti', 12, 'pengurus-inti', 2),
+  ('telu-tak', 'Pengalaman Organisasi', 'Ketua Divisi', 10, 'ketua-divisi', 3),
+  ('telu-tak', 'Pengalaman Organisasi', 'Anggota Pengurus', 6, 'anggota-pengurus', 4),
+  ('telu-tak', 'Sertifikasi / Lisensi', 'Sertifikasi Internasional', 15, 'sertifikasi-internasional', 1),
+  ('telu-tak', 'Sertifikasi / Lisensi', 'Sertifikasi Nasional', 10, 'sertifikasi-nasional', 2),
+  ('telu-tak', 'Sertifikasi / Lisensi', 'Sertifikasi Internal / Pelatihan', 5, 'sertifikasi-internal', 3),
+  ('telu-tak', 'Kepanitiaan Event', 'Ketua Panitia', 10, 'ketua-panitia', 1),
+  ('telu-tak', 'Kepanitiaan Event', 'Koordinator Sie', 7, 'koordinator-sie', 2),
+  ('telu-tak', 'Kepanitiaan Event', 'Anggota Panitia', 4, 'anggota-panitia', 3),
+  ('telu-tak', 'Workshop / Seminar / Pelatihan', 'Pembicara / Narasumber', 10, 'pembicara', 1),
+  ('telu-tak', 'Workshop / Seminar / Pelatihan', 'Peserta — Internasional / Nasional', 3, 'peserta-eksternal', 2),
+  ('telu-tak', 'Workshop / Seminar / Pelatihan', 'Peserta — Regional / Internal', 2, 'peserta-internal', 3),
+  -- ===== binus-sat — 120 poin + 30 jam sosial (jam dicatat di skm_activities.jam_sosial) =====
+  ('binus-sat', 'Prestasi / Kejuaraan', 'Internasional — Juara 1/2/3', 50, 'juara-internasional', 1),
+  ('binus-sat', 'Prestasi / Kejuaraan', 'Nasional — Juara 1/2/3', 40, 'juara-nasional', 2),
+  ('binus-sat', 'Prestasi / Kejuaraan', 'Regional / Provinsi — Juara 1/2/3', 30, 'juara-regional', 3),
+  ('binus-sat', 'Prestasi / Kejuaraan', 'Internal Kampus — Juara 1/2/3', 20, 'juara-internal', 4),
+  ('binus-sat', 'Prestasi / Kejuaraan', 'Finalis / Peserta', 10, 'finalis-peserta', 5),
+  ('binus-sat', 'Pengalaman Organisasi', 'Ketua / Wakil Ketua', 30, 'ketua-organisasi', 1),
+  ('binus-sat', 'Pengalaman Organisasi', 'Pengurus Inti', 25, 'pengurus-inti', 2),
+  ('binus-sat', 'Pengalaman Organisasi', 'Ketua Divisi', 20, 'ketua-divisi', 3),
+  ('binus-sat', 'Pengalaman Organisasi', 'Anggota Pengurus', 10, 'anggota-pengurus', 4),
+  ('binus-sat', 'Sertifikasi / Lisensi', 'Sertifikasi Internasional', 30, 'sertifikasi-internasional', 1),
+  ('binus-sat', 'Sertifikasi / Lisensi', 'Sertifikasi Nasional', 20, 'sertifikasi-nasional', 2),
+  ('binus-sat', 'Sertifikasi / Lisensi', 'Sertifikasi Internal / Pelatihan', 10, 'sertifikasi-internal', 3),
+  ('binus-sat', 'Kepanitiaan Event', 'Ketua Panitia', 20, 'ketua-panitia', 1),
+  ('binus-sat', 'Kepanitiaan Event', 'Koordinator Sie', 15, 'koordinator-sie', 2),
+  ('binus-sat', 'Kepanitiaan Event', 'Anggota Panitia', 10, 'anggota-panitia', 3),
+  ('binus-sat', 'Workshop / Seminar / Pelatihan', 'Pembicara / Narasumber', 20, 'pembicara', 1),
+  ('binus-sat', 'Workshop / Seminar / Pelatihan', 'Peserta — Internasional / Nasional', 8, 'peserta-eksternal', 2),
+  ('binus-sat', 'Workshop / Seminar / Pelatihan', 'Peserta — Regional / Internal', 4, 'peserta-internal', 3)
+ON CONFLICT (preset_id, kategori, tingkat) DO UPDATE SET
+  poin = EXCLUDED.poin, equivalence_key = EXCLUDED.equivalence_key, urutan = EXCLUDED.urutan;
+
+-- Pilihan persona per pengguna + provenance poin (audit P1-4)
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS skm_preset_id VARCHAR(40)
+    REFERENCES institution_presets(id) DEFAULT 'custom';
+ALTER TABLE skm_activities ADD COLUMN IF NOT EXISTS tingkat VARCHAR(160);
+ALTER TABLE skm_activities ADD COLUMN IF NOT EXISTS rule_id UUID
+    REFERENCES skm_point_rules(id) ON DELETE SET NULL;
+ALTER TABLE skm_activities ADD COLUMN IF NOT EXISTS jam_sosial NUMERIC(5,1);
+
+-- Konversi antar persona: satu transaksi server-side (dok 01 §3.3).
+-- SECURITY INVOKER — RLS "own rows" tetap berlaku untuk setiap UPDATE.
+CREATE OR REPLACE FUNCTION convert_skm_persona(p_preset VARCHAR)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+    v_user UUID := auth.uid();
+    n_converted INT := 0;
+    n_manual INT := 0;
+BEGIN
+    IF v_user IS NULL THEN
+        RAISE EXCEPTION 'Tidak terautentikasi';
+    END IF;
+    IF NOT EXISTS (SELECT FROM institution_presets WHERE id = p_preset) THEN
+        RAISE EXCEPTION 'Persona tidak dikenal: %', p_preset;
+    END IF;
+
+    UPDATE profiles SET skm_preset_id = p_preset WHERE id = v_user;
+
+    -- Entri ber-provenance: tulis ulang poin lewat peta kesetaraan tingkat.
+    UPDATE skm_activities a
+       SET poin_skm = nr.poin, rule_id = nr.id, tingkat = nr.tingkat
+      FROM skm_point_rules orule
+      JOIN skm_point_rules nr
+        ON nr.preset_id = p_preset
+       AND nr.equivalence_key = orule.equivalence_key
+     WHERE a.user_id = v_user
+       AND a.rule_id = orule.id
+       AND orule.equivalence_key IS NOT NULL;
+    GET DIAGNOSTICS n_converted = ROW_COUNT;
+
+    -- Rule tanpa padanan di persona baru → jadikan manual (poin dibiarkan).
+    UPDATE skm_activities a
+       SET rule_id = NULL
+     WHERE a.user_id = v_user
+       AND a.rule_id IS NOT NULL
+       AND NOT EXISTS (
+           SELECT FROM skm_point_rules r
+            WHERE r.id = a.rule_id AND r.preset_id = p_preset
+       );
+    GET DIAGNOSTICS n_manual = ROW_COUNT;
+
+    RETURN json_build_object('converted', n_converted, 'tanpa_padanan', n_manual);
+END;
+$$;
+
 -- =====================================================================
 --  Auto-create a profile row when a user signs up
 -- =====================================================================

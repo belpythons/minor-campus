@@ -177,6 +177,11 @@ export function SkmList({ activities }: { activities: SkmActivity[] }) {
 
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline">{a.kategori}</Badge>
+                    {a.tingkat && !a.rule_id && (
+                      <Badge variant="warning" title="Poin manual — tinjau ulang untuk persona aktif">
+                        poin manual
+                      </Badge>
+                    )}
                     <span className="text-[11.5px] text-muted-foreground">
                       {formatTanggal(a.tanggal_mulai)}
                     </span>
@@ -259,7 +264,17 @@ export function SkmList({ activities }: { activities: SkmActivity[] }) {
                       </TableCell>
 
                       <TableCell>
-                        <Badge variant="outline">{a.kategori}</Badge>
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge variant="outline">{a.kategori}</Badge>
+                          {a.tingkat && !a.rule_id && (
+                            <Badge
+                              variant="warning"
+                              title="Poin manual — tinjau ulang untuk persona aktif"
+                            >
+                              manual
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
 
                       <TableCell className="text-right font-bold text-primary tnum">

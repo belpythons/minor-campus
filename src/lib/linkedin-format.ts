@@ -1,5 +1,6 @@
 import type { SkmActivity } from "./types";
 import { formatBulanSingkat, formatTanggal } from "./format";
+import { aggregateSkm } from "./skm-aggregate";
 import { ORG } from "./constants";
 
 export type LinkedInSection = "experience" | "certification" | "award";
@@ -93,7 +94,7 @@ export function formatForLinkedIn(a: SkmActivity, section: LinkedInSection): str
 
 /** Whole-portfolio Markdown summary — for a personal GitHub README. */
 export function portfolioMarkdown(activities: SkmActivity[], nama: string): string {
-  const total = activities.reduce((s, a) => s + (a.poin_skm ?? 0), 0);
+  const total = aggregateSkm(activities).totalRaw;
   const out: string[] = [
     `# Portofolio Kegiatan — ${nama}`,
     "",

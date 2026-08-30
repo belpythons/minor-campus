@@ -5,7 +5,10 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/shared/page-header";
 import { SkmProgress } from "@/components/skm/skm-progress";
 import { SkmList } from "@/components/skm/skm-list";
+import { PersonaPicker } from "@/components/skm/persona-picker";
 import { requireSession } from "@/lib/session";
+import { aggregateSkm } from "@/lib/skm-aggregate";
+import { fetchActivePersona, fetchAllPresets } from "@/lib/skm-preset";
 import type { SkmActivity } from "@/lib/types";
 
 export const metadata = { title: "Daftar SKM" };
@@ -14,18 +17,18 @@ export const dynamic = "force-dynamic";
 export default async function SkmPage() {
   const { supabase, user } = await requireSession();
 
-  const { data } = await supabase
-    .from("skm_activities")
-    .select("*")
-    .eq("user_id", user.id)
-    .order("tanggal_mulai", { ascending: false });
+  const [{ data }, { preset, rules }, presets] = await Promise.all([
+    supabase
+      .from("skm_activities")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("tanggal_mulai", { ascending: false }),
+    fetchActivePersona(supabase, user.id),
+    fetchAllPresets(supabase),
+  ]);
 
   const activities = (data ?? []) as SkmActivity[];
-  const totalPoin = activities.reduce((s, a) => s + (a.poin_skm ?? 0), 0);
-  const countByKategori = activities.reduce<Record<string, number>>((acc, a) => {
-    acc[a.kategori] = (acc[a.kategori] ?? 0) + 1;
-    return acc;
-  }, {});
+  const agg = aggregateSkm(activities, rules);
 
   return (
     <>
@@ -51,7 +54,15 @@ export default async function SkmPage() {
       />
 
       <div className="space-y-4">
-        <SkmProgress totalPoin={totalPoin} countByKategori={countByKategori} />
+        {presets.length > 0 && <PersonaPicker presets={presets} active={preset} />}
+        <SkmProgress
+          totalPoin={agg.totalEfektif}
+          countByKategori={agg.countByKategori}
+          target={preset.target_poin}
+          targetJamSosial={preset.target_jam_sosial}
+          totalJamSosial={agg.totalJamSosial}
+          perKategori={agg.perKategori}
+        />
         <SkmList activities={activities} />
       </div>
     </>

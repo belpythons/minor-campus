@@ -24,7 +24,7 @@ import { UnsavedBar } from "@/components/shared/unsaved-bar";
 import { createClient } from "@/lib/supabase/client";
 import { removePublicFile, uploadPublicFile } from "@/lib/upload";
 import { deleteSkmActivity, saveSkmActivity } from "@/app/(app)/skm/actions";
-import { rulesFor, suggestPoin } from "@/lib/skm-points";
+import type { SkmPointRule } from "@/lib/skm-preset";
 import { MAX_CERTIFICATE_SIZE, SKM_KATEGORI, STORAGE_BUCKET_CERTIFICATES } from "@/lib/constants";
 import { todayISO } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
@@ -40,12 +40,25 @@ interface FormState {
   tanggalMulai: string;
   tanggalSelesai: string;
   poin: string;
+  jamSosial: string;
   tags: string[];
   deskripsi: string;
   credentialId: string;
 }
 
-export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActivity }) {
+export function SkmForm({
+  userId,
+  initial,
+  rules,
+  withJamSosial = false,
+}: {
+  userId: string;
+  initial?: SkmActivity;
+  /** Aturan poin persona aktif — mengisi dropdown Tingkat/Peran. */
+  rules: SkmPointRule[];
+  /** Persona BINUS: tampilkan input jam kegiatan sosial. */
+  withJamSosial?: boolean;
+}) {
   const router = useRouter();
   const isEdit = Boolean(initial);
   const confirm = useConfirm();
@@ -58,6 +71,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
       tanggalMulai: initial?.tanggal_mulai ?? todayISO(),
       tanggalSelesai: initial?.tanggal_selesai ?? "",
       poin: String(initial?.poin_skm ?? 0),
+      jamSosial: initial?.jam_sosial != null ? String(initial.jam_sosial) : "",
       tags: initial?.skill_tags ?? [],
       deskripsi: initial?.deskripsi ?? "",
       credentialId: initial?.credential_id ?? "",
@@ -66,7 +80,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
   );
 
   const [form, setForm] = React.useState<FormState>(initialState);
-  const [tingkat, setTingkat] = React.useState(NO_TINGKAT);
+  const [tingkat, setTingkat] = React.useState(initial?.rule_id ?? NO_TINGKAT);
   const [file, setFile] = React.useState<File | null>(null);
   const [removeExisting, setRemoveExisting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -89,7 +103,10 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
     });
   }
 
-  const tingkatOptions = React.useMemo(() => rulesFor(form.kategori), [form.kategori]);
+  const tingkatOptions = React.useMemo(
+    () => rules.filter((r) => r.kategori === form.kategori),
+    [rules, form.kategori],
+  );
 
   function onKategoriChange(value: string) {
     set("kategori", value);
@@ -99,8 +116,8 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
   function onTingkatChange(value: string) {
     setTingkat(value);
     if (value === NO_TINGKAT) return;
-    const suggested = suggestPoin(form.kategori, value);
-    if (suggested) set("poin", String(suggested));
+    const rule = rules.find((r) => r.id === value);
+    if (rule) set("poin", String(rule.poin));
   }
 
   function validate() {
@@ -112,6 +129,9 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
       next.tanggalSelesai = "Tanggal selesai tidak boleh lebih awal dari tanggal mulai.";
     }
     if (Number(form.poin) < 0) next.poin = "Poin tidak boleh negatif.";
+    if (form.jamSosial.trim() !== "" && !(Number(form.jamSosial) >= 0)) {
+      next.jamSosial = "Jam sosial harus angka 0 atau lebih.";
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -143,6 +163,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
         );
       }
 
+      const selectedRule = rules.find((r) => r.id === tingkat) ?? null;
       const payload = {
         id: initial?.id,
         judul: form.judul.trim(),
@@ -155,6 +176,9 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
         skill_tags: form.tags.length ? form.tags : null,
         certificate_url: certificateUrl,
         credential_id: form.credentialId.trim() || null,
+        tingkat: selectedRule?.tingkat ?? initial?.tingkat ?? null,
+        rule_id: selectedRule?.id ?? null,
+        jam_sosial: form.jamSosial.trim() === "" ? null : Number(form.jamSosial),
       };
 
       const result = await saveSkmActivity(payload);
@@ -239,7 +263,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
                 <SelectContent>
                   <SelectItem value={NO_TINGKAT}>Isi poin manual</SelectItem>
                   {tingkatOptions.map((r) => (
-                    <SelectItem key={r.tingkat} value={r.tingkat}>
+                    <SelectItem key={r.id} value={r.id}>
                       {r.tingkat} — {r.poin} poin
                     </SelectItem>
                   ))}
@@ -320,6 +344,26 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
                   onChange={(e) => set("poin", e.target.value)}
                 />
               </Field>
+
+              {withJamSosial && (
+                <Field
+                  label="Jam Kegiatan Sosial"
+                  htmlFor="jamsos"
+                  optional="opsional"
+                  hint="Dihitung ke bar jam sosial persona (syarat BINUS: 30 jam)."
+                  error={errors.jamSosial}
+                >
+                  <Input
+                    {...fieldAria("jamsos", errors.jamSosial)}
+                    type="number"
+                    min={0}
+                    step="0.5"
+                    inputMode="decimal"
+                    value={form.jamSosial}
+                    onChange={(e) => set("jamSosial", e.target.value)}
+                  />
+                </Field>
+              )}
             </div>
 
             <Field

@@ -21,7 +21,8 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { displayName, requireSession } from "@/lib/session";
 import { computeStats } from "@/lib/report-stats";
-import { SKM_TARGET_POIN } from "@/lib/constants";
+import { aggregateSkm, persenTarget } from "@/lib/skm-aggregate";
+import { fetchActivePersona } from "@/lib/skm-preset";
 import { formatRentangJam, formatTanggal, pluralJam } from "@/lib/format";
 import type { InternshipReport, LogbookEntry, SkmActivity } from "@/lib/types";
 import { CountUp, FadeIn, Stagger, StaggerItem } from "@/components/motion/motion-primitives";
@@ -32,22 +33,27 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const { supabase, user, profile } = await requireSession();
 
-  const [skmRes, reportRes, logbookRes] = await Promise.all([
-    supabase.from("skm_activities").select("poin_skm").eq("user_id", user.id),
+  const [skmRes, reportRes, logbookRes, { preset, rules }] = await Promise.all([
+    supabase
+      .from("skm_activities")
+      .select("poin_skm, kategori, jam_sosial")
+      .eq("user_id", user.id),
     supabase
       .from("internship_reports")
       .select("id, tanggal, jam_mulai, jam_selesai, kategori, judul, kendala, foto_url")
       .eq("user_id", user.id)
       .order("tanggal", { ascending: false }),
     supabase.from("logbook_entries").select("paraf_status").eq("user_id", user.id),
+    fetchActivePersona(supabase, user.id),
   ]);
 
-  const skm = (skmRes.data ?? []) as Pick<SkmActivity, "poin_skm">[];
+  const skm = (skmRes.data ?? []) as Pick<SkmActivity, "poin_skm" | "kategori" | "jam_sosial">[];
   const reports = (reportRes.data ?? []) as InternshipReport[];
   const logbook = (logbookRes.data ?? []) as Pick<LogbookEntry, "paraf_status">[];
 
-  const totalPoin = skm.reduce((s, a) => s + (a.poin_skm ?? 0), 0);
-  const skmPct = Math.min(100, Math.round((totalPoin / SKM_TARGET_POIN) * 100));
+  const skmAgg = aggregateSkm(skm, rules);
+  const totalPoin = skmAgg.totalEfektif;
+  const skmPct = persenTarget(totalPoin, preset.target_poin);
   const stats = computeStats(reports);
   const diparaf = logbook.filter((e) => e.paraf_status).length;
   const menungguParaf = logbook.length - diparaf;
@@ -59,7 +65,7 @@ export default async function DashboardPage() {
       icon: Award,
       title: "Satuan Kegiatan Mahasiswa",
       primary: totalPoin,
-      primaryLabel: `dari ${SKM_TARGET_POIN} poin kelulusan`,
+      primaryLabel: `dari ${preset.target_poin} poin (${preset.nama})`,
       secondary: `${skm.length} kegiatan tercatat`,
       progress: skmPct,
       href: "/skm",

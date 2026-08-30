@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/shared/page-header";
 import { SkmForm } from "@/components/skm/skm-form";
 import { requireSession } from "@/lib/session";
+import { fetchActivePersona } from "@/lib/skm-preset";
 import type { SkmActivity } from "@/lib/types";
 
 export const metadata = { title: "Ubah Kegiatan SKM" };
@@ -20,6 +21,7 @@ export default async function EditSkmPage({ params }: { params: { id: string } }
 
   if (!data) notFound();
   const activity = data as SkmActivity;
+  const { preset, rules } = await fetchActivePersona(supabase, user.id);
 
   return (
     <>
@@ -28,7 +30,12 @@ export default async function EditSkmPage({ params }: { params: { id: string } }
         description={activity.judul}
         back={{ href: "/skm", label: "Daftar SKM" }}
       />
-      <SkmForm userId={user.id} initial={activity} />
+      <SkmForm
+        userId={user.id}
+        initial={activity}
+        rules={rules}
+        withJamSosial={preset.target_jam_sosial != null}
+      />
     </>
   );
 }

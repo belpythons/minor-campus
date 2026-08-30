@@ -26,6 +26,8 @@ export interface Profile {
   instansi: string;
   tempat_kp: string;
   email: string;
+  /* EXTENSION — persona SKM aktif (docs/perbaikan/01) */
+  skm_preset_id: string | null;
   /* EXTENSION — feeds the Formulir 2 signature block & recap period */
   pembimbing_nama: string | null;
   pembimbing_jabatan: string | null;
@@ -49,6 +51,10 @@ export interface SkmActivity {
   certificate_url: string | null;
   /* EXTENSION — LinkedIn "Credential ID" field */
   credential_id: string | null;
+  /* EXTENSION — provenance persona (docs/perbaikan/01 §3.2) */
+  tingkat: string | null;
+  rule_id: string | null;
+  jam_sosial: number | null;
   created_at: string;
 }
 

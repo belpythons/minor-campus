@@ -25,6 +25,10 @@ export interface SkmActivityInput {
   skill_tags: string[] | null;
   certificate_url: string | null;
   credential_id: string | null;
+  /* Provenance persona (dok 01 §3.2) */
+  tingkat: string | null;
+  rule_id: string | null;
+  jam_sosial: number | null;
 }
 
 export type ActionResult = { ok: true } | { error: string };
@@ -58,7 +62,44 @@ export async function saveSkmActivity(input: SkmActivityInput): Promise<ActionRe
       skill_tags: vTags(input.skill_tags),
       certificate_url: vOptionalStr(input.certificate_url, "URL sertifikat", 2000),
       credential_id: vOptionalStr(input.credential_id, "Credential ID", 120),
+      tingkat: vOptionalStr(input.tingkat, "Tingkat", 160),
+      rule_id: null as string | null,
+      jam_sosial:
+        input.jam_sosial == null
+          ? null
+          : (() => {
+              const n = Number(input.jam_sosial);
+              if (!Number.isFinite(n) || n < 0 || n > 9999) {
+                throw new ValidationError("Jam sosial harus angka 0–9999.");
+              }
+              return Math.round(n * 10) / 10;
+            })(),
     };
+
+    // Provenance hanya sah bila rule milik persona aktif DAN poin belum
+    // di-override manual — selain itu entri tercatat sebagai poin manual.
+    if (input.rule_id) {
+      const { data: rule } = await supabase
+        .from("skm_point_rules")
+        .select("id, preset_id, kategori, tingkat, poin")
+        .eq("id", input.rule_id)
+        .maybeSingle();
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("skm_preset_id")
+        .eq("id", user.id)
+        .maybeSingle();
+      const presetAktif = (prof?.skm_preset_id as string | null) ?? "custom";
+      if (
+        rule &&
+        rule.preset_id === presetAktif &&
+        rule.kategori === payload.kategori &&
+        rule.poin === payload.poin_skm
+      ) {
+        payload.rule_id = rule.id;
+        payload.tingkat = rule.tingkat;
+      }
+    }
   } catch (err) {
     if (err instanceof ValidationError) return { error: err.message };
     throw err;
@@ -74,6 +115,36 @@ export async function saveSkmActivity(input: SkmActivityInput): Promise<ActionRe
 
   if (error) return { error: error.message };
   return { ok: true };
+}
+
+/**
+ * Ganti persona + konversi poin dalam satu transaksi RPC (dok 01 §3.3).
+ * Entri ber-rule dikonversi lewat equivalence_key; entri manual dibiarkan.
+ */
+export async function setSkmPersona(
+  presetId: string,
+): Promise<{ ok: true; converted: number; tanpaPadanan: number } | { error: string }> {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesi berakhir. Silakan masuk kembali." };
+
+  if (typeof presetId !== "string" || presetId.length > 40) {
+    return { error: "Persona tidak valid." };
+  }
+
+  const { data, error } = await supabase.rpc("convert_skm_persona", {
+    p_preset: presetId,
+  });
+
+  if (error) return { error: error.message };
+  const result = (data ?? {}) as { converted?: number; tanpa_padanan?: number };
+  return {
+    ok: true,
+    converted: result.converted ?? 0,
+    tanpaPadanan: result.tanpa_padanan ?? 0,
+  };
 }
 
 export async function deleteSkmActivity(id: string): Promise<ActionResult> {
