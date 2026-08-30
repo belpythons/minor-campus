@@ -23,6 +23,7 @@ import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { UnsavedBar } from "@/components/shared/unsaved-bar";
 import { createClient } from "@/lib/supabase/client";
 import { removePublicFile, uploadPublicFile } from "@/lib/upload";
+import { deleteSkmActivity, saveSkmActivity } from "@/app/(app)/skm/actions";
 import { rulesFor, suggestPoin } from "@/lib/skm-points";
 import { MAX_CERTIFICATE_SIZE, SKM_KATEGORI, STORAGE_BUCKET_CERTIFICATES } from "@/lib/constants";
 import { todayISO } from "@/lib/format";
@@ -143,7 +144,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
       }
 
       const payload = {
-        user_id: userId,
+        id: initial?.id,
         judul: form.judul.trim(),
         kategori: form.kategori,
         penyelenggara: form.penyelenggara.trim(),
@@ -156,11 +157,8 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
         credential_id: form.credentialId.trim() || null,
       };
 
-      const { error } = isEdit
-        ? await supabase.from("skm_activities").update(payload).eq("id", initial!.id)
-        : await supabase.from("skm_activities").insert(payload);
-
-      if (error) throw error;
+      const result = await saveSkmActivity(payload);
+      if ("error" in result) throw new Error(result.error);
 
       // Only once the row is safely written does the old file go.
       if ((file || removeExisting) && previousUrl && previousUrl !== certificateUrl) {
@@ -184,17 +182,16 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
     if (!initial) return;
     confirm.setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.from("skm_activities").delete().eq("id", initial.id);
+    const result = await deleteSkmActivity(initial.id);
 
-    if (error) {
-      notifyError("Gagal menghapus kegiatan", { description: describeError(error) });
+    if ("error" in result) {
+      notifyError("Gagal menghapus kegiatan", { description: describeError(result.error) });
       confirm.close();
       return;
     }
 
     // Row is gone; now the certificate can be discarded safely.
-    await removePublicFile(supabase, STORAGE_BUCKET_CERTIFICATES, initial.certificate_url);
+    await removePublicFile(createClient(), STORAGE_BUCKET_CERTIFICATES, initial.certificate_url);
 
     notifySuccess("Kegiatan SKM dihapus", { description: initial.judul });
     confirm.close();
