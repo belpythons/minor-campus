@@ -1,152 +1,254 @@
-# 🚀 System Specification & Documentation: Student Hub & Internship Logbook
+# Student Hub & Internship Logbook
 
-Selamat datang di dokumentasi resmi **Sistem Terpadu SKM, Task Report Magang, dan Log Book Konsultasi**. Sistem ini dikembangkan untuk mengintegrasikan 3 kebutuhan utama mahasiswa dan peserta magang dalam satu platform web modern:
+Implementasi dari spesifikasi di `D:\KOD ING\QOL\` — tiga modul dalam satu aplikasi Next.js 14:
 
-1. **Modul Satuan Kegiatan Mahasiswa (SKM) & LinkedIn Assistant**
-2. **Modul Tracking Task Report Magang / PKL (Standard PT Badak NGL)**
-3. **Modul Log Book Kegiatan & Konsultasi (Standard STITEK Bontang `TI-SOP-17/FM-01`)**
+1. **Satuan Kegiatan Mahasiswa (SKM) & LinkedIn Assistant** → [docs/FITUR-MODUL-SKM.md](docs/FITUR-MODUL-SKM.md)
+2. **Task Report Magang / PKL (PT Badak NGL)** → [docs/FITUR-MODUL-TASK-REPORT.md](docs/FITUR-MODUL-TASK-REPORT.md)
+3. **Log Book Kegiatan & Konsultasi (STITEK `TI-SOP-17/FM-01`)** → [docs/FITUR-MODUL-LOGBOOK.md](docs/FITUR-MODUL-LOGBOOK.md)
 
----
-
-## 📐 General System Architecture & Tech Stack
-
-Aplikasi dirancang menggunakan arsitektur **Jamstack Serverless** modern yang dioptimalkan untuk performa tinggi, keamanan data, dan **kemudahan deployment tanpa biaya (Vercel Free Plan)**.
-
-```mermaid
-graph TD
-    A[Client User Interface - React / Next.js 14] --> B[Vercel Serverless Platform]
-    A --> C[Supabase PostgreSQL Database]
-    A --> D[Supabase Storage Buckets]
-    A --> E[Supabase Auth Engine]
-    
-    subgraph Frontend Layer
-        A
-    end
-    
-    subgraph Backend & Storage Layer (Supabase)
-        C
-        D
-        E
-    end
-```
-
-### 💻 Stack Teknologi
-
-| Layer | Teknologi | Alasan Pemilihan & Keunggulan |
-|---|---|---|
-| **Frontend Framework** | React 18 / Next.js 14 (App Router) | Render cepat, mendukung SSR & Static Generation, ramah SEO, dan ekosistem React yang matang. |
-| **Styling & UI Components** | Vanilla CSS + Tailwind CSS + Lucide Icons | Desain premium, modern glassmorphism, fully responsive, hemat ukuran bundle. |
-| **Database** | Supabase (PostgreSQL 15+) | Relasional DB tangguh, gratis hingga 500MB, mendukung query JSONB dan RLS (Row Level Security). |
-| **Backend & Authentication** | Supabase Auth (JWT) | Autentikasi email/password langsung aktif tanpa perlu mengelola server auth manual. |
-| **File Storage** | Supabase Storage Buckets | Menyimpan lampiran foto kegiatan magang (hingga 50MB) dan sertifikat SKM. |
-| **Deployment & Hosting** | Vercel Free Plan | Integration 1-click CI/CD via GitHub, global CDN, ssl gratis, 100% tanpa biaya server. |
-| **Document Export Engine** | HTML-to-Print / PDF Renderer | Mencetak dokumen resmi Formulir 2 STITEK dan Laporan Rekap PT Badak NGL secara presisi (pixel-perfect). |
+Audit UX/QA beserta seluruh bug yang ditemukan dan diperbaiki:
+→ [docs/UX-QA-AUDIT.md](docs/UX-QA-AUDIT.md)
 
 ---
 
-## 🗄️ Unified Database Schema (Supabase PostgreSQL)
+## Stack
 
-Berikut adalah skema tabel relasional yang digunakan di Supabase:
+| Layer | Teknologi |
+|---|---|
+| Framework | Next.js 14 (App Router) · React 18 · TypeScript |
+| UI | shadcn/ui (Radix primitives) + Tailwind CSS · Poppins |
+| Ikon | Lucide — set ikon resmi shadcn |
+| Animasi | Framer Motion — seluruhnya menghormati `prefers-reduced-motion` |
+| Tema | `next-themes` — Terang / Gelap / Ikuti sistem |
+| Notifikasi | Sonner (toast) |
+| Database / Auth / Storage | Supabase (PostgreSQL 15, JWT Auth, Storage Buckets) |
+| Ekspor Excel | ExcelJS |
+| Cetak PDF | HTML + `@media print` A4 |
+| PWA | Manifest + service worker tulis-tangan |
 
-```sql
--- 1. Tabel Profil Mahasiswa / User Profile
-CREATE TABLE profiles (
-    id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-    nama_lengkap VARCHAR(255) NOT NULL,
-    nim VARCHAR(50) NOT NULL,
-    prodi VARCHAR(100) DEFAULT 'Teknik Informatika',
-    instansi VARCHAR(255) DEFAULT 'Sekolah Tinggi Teknologi Bontang',
-    tempat_kp VARCHAR(255) DEFAULT 'PT Badak NGL',
-    email VARCHAR(255) UNIQUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
-);
+### Sistem Token
 
--- 2. Tabel SKM & Prestasi Mahasiswa
-CREATE TABLE skm_activities (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    judul VARCHAR(255) NOT NULL,
-    kategori VARCHAR(100) NOT NULL, -- Prestasi, Organisasi, Sertifikasi, Kepanitiaan, Workshop
-    penyelenggara VARCHAR(255) NOT NULL,
-    tanggal_mulai DATE NOT NULL,
-    tanggal_selesai DATE,
-    poin_skm INT DEFAULT 0,
-    deskripsi TEXT,
-    skill_tags TEXT[], -- Array tag keahlian untuk LinkedIn (misal: ['React', 'Python', 'Data Analysis'])
-    certificate_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
-);
+`src/app/globals.css` memuat **dua lapis** token, dan pembagian ini penting:
 
--- 3. Tabel Task Report Magang (Standard PT Badak NGL)
-CREATE TABLE internship_reports (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    tanggal DATE NOT NULL,
-    jam_mulai TIME,
-    jam_selesai TIME,
-    kategori VARCHAR(100) NOT NULL, -- Pekerjaan Utama, Meeting/Diskusi, Belajar/Training, Dokumentasi, Kunjungan Lapangan, Lainnya
-    judul VARCHAR(255) NOT NULL,
-    deskripsi TEXT,
-    output TEXT,
-    kendala TEXT,
-    foto_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
-);
+1. **Token semantik shadcn (HSL)** — `--background`, `--primary`,
+   `--muted-foreground`, dan seterusnya. Punya nilai terang dan gelap. Semua
+   komponen membaca dari sini.
+2. **Token brand (hex)** — `--navy #001e41` · `--blue #0057a8` ·
+   `--red #e3001b` · `--amber #f9a330`, diambil dari sistem referensi
+   `http://10.10.1.187:8097`. **Dipatok ke nilai terang di kedua tema**, karena
+   `src/app/print/print.css` bergantung padanya dan hasil PDF tidak boleh
+   berubah mengikuti tema tampilan.
 
--- 4. Tabel Logbook Kegiatan & Konsultasi (Formulir 2 STITEK)
-CREATE TABLE logbook_entries (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    nomor_urut INT NOT NULL,
-    tanggal DATE NOT NULL,
-    aktivitas_pekerjaan TEXT NOT NULL,
-    pembimbing_nama VARCHAR(255) NOT NULL,
-    pembimbing_jabatan VARCHAR(255),
-    paraf_status BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
-);
+Kontras teks memenuhi WCAG AA: `--muted-foreground` 5.9:1 pada tema terang,
+6.1:1 pada tema gelap.
+
+---
+
+## Menjalankan
+
+```bash
+npm install
+npm run dev
+```
+
+Aplikasi berjalan di `http://localhost:3000`.
+
+### Konfigurasi Supabase
+
+`.env.local` (tidak masuk git) harus berisi:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+```
+
+Dua variabel berikut **opsional** dan hanya dipakai skrip pemeliharaan di `scripts/`, bukan oleh aplikasi:
+
+```env
+SUPABASE_SERVICE_ROLE_KEY=<service_role key>
+SUPABASE_DB_URL=postgresql://postgres.<ref>:<password>@<pooler-host>:5432/postgres
+```
+
+> Host `db.<ref>.supabase.co` pada halaman *Direct connection* Supabase kini hanya menyediakan alamat IPv6. Bila jaringan Anda IPv4-only, pakai **Session pooler** (`aws-0-<region>.pooler.supabase.com:5432`, user `postgres.<ref>`) — itulah nilai yang tersimpan di `.env.local`.
+
+### Menyiapkan Database
+
+Jalankan `supabase/schema.sql` satu kali. Dua cara:
+
+```bash
+node scripts/apply-schema.mjs      # butuh SUPABASE_DB_URL
+```
+
+atau salin isinya ke **SQL Editor** pada dashboard Supabase lalu jalankan.
+
+Skrip itu idempoten (`CREATE TABLE IF NOT EXISTS`, `DROP POLICY IF EXISTS`) sehingga aman dijalankan ulang. Isinya:
+
+- 6 tabel: `profiles`, `skm_activities`, `internship_reports`, `report_comments`, `supervisors`, `logbook_entries`
+- Trigger `on_auth_user_created` — membuat baris `profiles` otomatis saat pendaftaran
+- Kebijakan Row Level Security untuk setiap tabel
+- Bucket Storage `skm-certificates` dan `report-photos` beserta kebijakan aksesnya
+
+Empat tabel inti mengikuti `QOL/README.md` apa adanya. Kolom dan tabel tambahan diberi komentar `-- EXTENSION:` beserta modul yang membutuhkannya.
+
+### Pengaturan Auth
+
+Pada dashboard Supabase → **Authentication → Providers → Email**: matikan *Confirm email* bila ingin pendaftaran langsung bisa masuk tanpa verifikasi email. Bila dibiarkan menyala, halaman `/register` menampilkan pesan untuk mengecek email lebih dahulu.
+
+---
+
+## Skrip Pemeliharaan
+
+| Skrip | Fungsi |
+|---|---|
+| `node scripts/apply-schema.mjs` | Menjalankan `supabase/schema.sql` ke database |
+| `node scripts/seed-test-user.mjs` | Membuat akun uji `belva.test@stitek.local` / `Test1234!` (sudah terkonfirmasi) |
+| `node scripts/seed-demo-data.mjs` | Mengisi 6 laporan, 2 pembimbing, 4 entri log book untuk akun uji |
+| `node scripts/generate-pwa-icons.mjs` | Membangkitkan seluruh ikon PWA dari `public/logo.png` |
+| `node scripts/_qa.mjs <outDir>` | Harness QA: login sungguhan, 29 tangkapan layar, 10 pemeriksaan perilaku |
+| `node scripts/_pdf.mjs <outDir>` | Mencetak kedua dokumen resmi ke PDF pada tema terang dan gelap |
+
+Skrip Supabase memakai `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_DB_URL` dan
+**tidak** pernah dijalankan oleh aplikasi. Hapus akun uji lewat dashboard
+Supabase sebelum dipakai sungguhan.
+
+Dua skrip berawalan `_` butuh server `npm run dev` yang sedang berjalan, dan
+Chrome di `C:\Program Files\Google\Chrome\Application\chrome.exe`.
+
+---
+
+## Peta Rute
+
+```
+/login · /register                     autentikasi
+/offline                               fallback service worker (statis, tanpa sesi)
+/dashboard                             ringkasan tiga modul
+/account                               profil + blok pengesahan (mengisi kedua kop surat)
+
+/skm · /skm/new · /skm/[id]/edit       portofolio SKM
+/skm/linkedin                          generator teks LinkedIn & Markdown
+
+/reports/feed                          daftar kegiatan seluruh peserta
+/reports · /reports/new                laporan sendiri
+/reports/[id] · /reports/[id]/edit     detail + komentar · ubah
+/reports/export                        panel filter ekspor
+/print/rekap-magang                    dokumen cetak A4 PT Badak NGL
+/api/export/xlsx · /api/export/csv     unduhan data
+
+/logbook · /logbook/new                log book kerja praktek
+/logbook/[id]/edit                     ubah entri
+/logbook/supervisors                   kelola pembimbing
+/logbook/rekap                         rekap konsultasi per atasan
+/print/formulir2                       dokumen cetak A4 Formulir 2 STITEK
+```
+
+Seluruh rute memerlukan sesi; `src/middleware.ts` menyegarkan cookie Supabase,
+mengalihkan peramban yang belum masuk ke `/login`, dan membalas **401 JSON**
+untuk `/api/*` agar pemanggil API tidak menerima halaman HTML. Manifest, service
+worker, dan folder ikon dikecualikan dari matcher.
+
+### Filter tersimpan di URL
+
+Setiap filter dan nomor halaman ditulis ke query string, sehingga tampilan bisa
+di-*refresh*, ditelusuri dengan tombol Back/Forward, dan dibagikan sebagai
+tautan:
+
+```
+/reports?q=Handover&kategori=Dokumentasi&page=2
+/logbook?pembimbing=<uuid>&paraf=belum
+/skm?tahun=2025%2F2026
 ```
 
 ---
 
-## 📁 Struktur Direktori Dokumentasi per Modul
-
-Dokumentasi lengkap dibagikan ke dalam subfolder khusus per modul di direktori `QOL/`:
+## Struktur Direktori
 
 ```
-d:\KOD ING\QOL\
-├── README.md                           <- System Specification & Setup Guide (File Ini)
-├── TEMPLATES_REFERENCE.md              <- Breakdown Referensi Template (Docx, PDF Kop, Form PNG)
-├── modul-skm/                          <- Dokumentasi Modul SKM & LinkedIn
-│   ├── 01-OVERVIEW-SKM.md
-│   ├── 02-FITUR-PRESTASI-ORGANISASI.md
-│   └── 03-FITUR-LINKEDIN-ASSISTANT.md
-├── modul-task-report/                  <- Dokumentasi Modul Task Report Magang
-│   ├── 01-OVERVIEW-TASK-REPORT.md
-│   ├── 02-FITUR-FORM-INPUT.md
-│   └── 03-FITUR-DASHBOARD-EXPORT.md
-└── modul-logbook/                      <- Dokumentasi Modul Logbook Konsultasi STITEK
-    ├── 01-OVERVIEW-LOGBOOK.md
-    ├── 02-FITUR-FORMULIR2-TEMPLATE.md
-    └── 03-FITUR-MULTI-SUPERVISOR.md
+app/
+├─ docs/                    dokumentasi fitur per modul
+├─ scripts/                 skrip pemeliharaan & QA (bukan bagian aplikasi)
+├─ supabase/schema.sql      skema, RLS, bucket
+├─ public/
+│  ├─ logo.png              identitas & kop kedua dokumen cetak
+│  ├─ manifest.webmanifest  PWA manifest + shortcut
+│  ├─ sw.js                 service worker
+│  └─ icons/                ikon PWA hasil generate
+├─ components.json          konfigurasi shadcn/ui
+└─ src/
+   ├─ middleware.ts
+   ├─ hooks/                use-url-filters · use-unsaved-changes
+   ├─ app/
+   │  ├─ (app)/             halaman ber-sidebar (+ loading.tsx, error.tsx)
+   │  ├─ print/             dokumen cetak + print.css
+   │  ├─ offline/           fallback offline
+   │  ├─ api/export/
+   │  └─ login/ · register/ · auth/
+   ├─ components/
+   │  ├─ ui/                20 primitive shadcn/ui
+   │  ├─ shared/            field · confirm-dialog · filter-bar · pagination ·
+   │  │                     file-picker · stat-card · skeletons · empty-state ·
+   │  │                     unsaved-bar · page-header · error-view
+   │  ├─ motion/            primitive Framer Motion
+   │  ├─ pwa/               service-worker-registrar · install-prompt
+   │  └─ layout/ skm/ reports/ logbook/ print/
+   └─ lib/
+      ├─ supabase/          client · server · middleware · config
+      ├─ types.ts           cerminan schema.sql
+      ├─ constants.ts       kategori resmi, batas ukuran, teks institusi
+      ├─ format.ts          tanggal/jam Bahasa Indonesia
+      ├─ skm-points.ts      tabel bobot poin SKM
+      ├─ linkedin-format.ts tiga format LinkedIn + Markdown
+      ├─ report-stats.ts    agregasi Section II–IV
+      ├─ report-query.ts    filter + query bersama cetak/ekspor
+      ├─ logbook-query.ts
+      ├─ export.ts          baris & escaping CSV
+      ├─ upload.ts          Storage helper + progress unggahan
+      ├─ navigation.ts      sumber kebenaran navigasi
+      ├─ notify.ts          toast + penerjemah pesan error
+      └─ utils.ts           cn()
 ```
 
 ---
 
-## 🛠️ Panduan Implementasi & Deployment ke Vercel
+## Deploy ke Vercel
 
-1. **Inisialisasi Project Frontend**:
-   ```bash
-   npx create-next-app@latest skm-logbook-app --typescript --tailwind --app
-   ```
-2. **Koneksi Supabase**:
-   Buat file `.env.local` pada project:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-   ```
-3. **Deploy ke Vercel**:
-   - Push repository ke GitHub.
-   - Buka dashboard Vercel, pilih `Import Repository`.
-   - Masukkan Environment Variables (`NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`).
-   - Klik **Deploy**. Aplikasi aktif dalam waktu kurang dari 1 menit!
+1. Push repository ke GitHub.
+2. Vercel → **Import Repository**. Bila `app/` bukan akar repo, set **Root Directory** ke `app`.
+3. Tambahkan Environment Variables: `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+4. **Deploy**.
+5. Di Supabase → **Authentication → URL Configuration**, tambahkan domain Vercel ke *Site URL* dan *Redirect URLs*.
+
+Variabel `SUPABASE_SERVICE_ROLE_KEY` dan `SUPABASE_DB_URL` **tidak perlu** dipasang di Vercel — keduanya hanya dipakai skrip lokal.
+
+---
+
+## Menyimpan Dokumen sebagai PDF
+
+Buka `/print/rekap-magang` atau `/print/formulir2`, tekan **Cetak / Simpan PDF**,
+lalu pada dialog cetak browser pilih tujuan **Save as PDF**. Toolbar tidak ikut
+tercetak; ukuran kertas sudah dikunci A4 portrait lewat `@page`.
+
+Kedua halaman cetak **selalu terang**, apa pun tema tampilan yang dipakai. Ini
+diverifikasi otomatis: `scripts/_pdf.mjs` mencetak keduanya pada tema terang dan
+gelap, dan hasilnya identik byte-per-byte.
+
+---
+
+## PWA
+
+Aplikasi bisa dipasang ke layar utama. `public/sw.js` ditulis tangan, bukan
+dibangkitkan, karena ada satu aturan keras: **data per-pengguna tidak pernah
+disajikan dari cache** — menyajikan log book peserta lain dari cache basi lebih
+buruk daripada sekadar offline.
+
+| Jenis permintaan | Strategi |
+|---|---|
+| Navigasi halaman | Network-first, jatuh ke `/offline` |
+| `/_next/static/*` | Cache-first (nama berkas ber-hash) |
+| Ikon & manifest | Stale-while-revalidate |
+| Supabase, `/api/*`, `/auth/*`, `/print/*`, payload RSC | Tidak disentuh sama sekali |
+
+Perbarui ikon setelah mengganti `public/logo.png`:
+
+```bash
+node scripts/generate-pwa-icons.mjs
+```
