@@ -123,6 +123,22 @@ CREATE TABLE IF NOT EXISTS logbook_entries (
 
 CREATE INDEX IF NOT EXISTS logbook_entries_user_idx ON logbook_entries (user_id, nomor_urut);
 
+-- ---------------------------------------------------------------------
+-- 7. Integrity constraints   (EXTENSION — audit P0-3)
+--    ADD CONSTRAINT has no IF NOT EXISTS, so guard via pg_constraint.
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_constraint WHERE conname = 'skm_poin_non_negatif') THEN
+        ALTER TABLE skm_activities
+            ADD CONSTRAINT skm_poin_non_negatif CHECK (poin_skm >= 0);
+    END IF;
+    IF NOT EXISTS (SELECT FROM pg_constraint WHERE conname = 'logbook_nomor_urut_positif') THEN
+        ALTER TABLE logbook_entries
+            ADD CONSTRAINT logbook_nomor_urut_positif CHECK (nomor_urut >= 1);
+    END IF;
+END $$;
+
 -- =====================================================================
 --  Auto-create a profile row when a user signs up
 -- =====================================================================
