@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { X } from "lucide-react";
 
@@ -49,21 +47,21 @@ export function TagInput({
     <div
       className={cn(
         "flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-input bg-card px-2 py-1.5 shadow-xs",
-        "focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25",
+        "focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/25",
         className,
       )}
     >
       {value.map((t) => (
         <span
           key={t}
-          className="inline-flex items-center gap-1 rounded-full bg-primary/12 py-0.5 pl-2.5 pr-1 text-[11.5px] font-semibold text-primary"
+          className="inline-flex items-center gap-1 rounded-full border border-foreground bg-primary py-0.5 pl-2.5 pr-1 text-[11.5px] font-semibold text-primary-foreground"
         >
           #{t}
           <button
             type="button"
             onClick={() => onChange(value.filter((x) => x !== t))}
             aria-label={`Hapus tag ${t}`}
-            className="rounded-full p-0.5 hover:bg-primary/15"
+            className="rounded-full p-0.5 hover:bg-foreground/20"
           >
             <X className="size-3" aria-hidden />
           </button>

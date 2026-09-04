@@ -8,10 +8,10 @@ Implementasi dari `QOL/modul-skm/`. Dokumen ini mencatat **fitur yang benar-bena
 
 | Rute | Berkas | Fungsi |
 |---|---|---|
-| `/skm` | `src/app/(app)/skm/page.tsx` | Dashboard poin + daftar & filter kegiatan |
-| `/skm/new` | `src/app/(app)/skm/new/page.tsx` | Form tambah kegiatan |
-| `/skm/[id]/edit` | `src/app/(app)/skm/[id]/edit/page.tsx` | Form ubah + hapus |
-| `/skm/linkedin` | `src/app/(app)/skm/linkedin/page.tsx` | Generator teks LinkedIn & Markdown |
+| `/skm` | `src/pages/skm/SkmListPage.tsx` | Dashboard poin + daftar & filter kegiatan |
+| `/skm/new` | `src/pages/skm/SkmFormPage.tsx` | Form tambah kegiatan |
+| `/skm/[id]/edit` | `src/pages/skm/SkmFormPage.tsx` | Form ubah + hapus |
+| `/skm/linkedin` | `src/pages/skm/LinkedInPage.tsx` | Generator teks LinkedIn & Markdown |
 
 Komponen: `src/components/skm/{skm-progress,skm-list,skm-form,linkedin-assistant,certificate-preview}.tsx`
 Logika: `src/lib/skm-points.ts`, `src/lib/linkedin-format.ts`
@@ -144,3 +144,22 @@ atas shadcn/ui: `skm-list.tsx`, `skm-form.tsx`, `skm-progress.tsx`,
   Assistant menjadi rail horizontal.
 - **Tag input** kini memecah daftar yang dipisah koma, baik diketik maupun
   di-paste.
+
+---
+
+## Pembaruan v1.0
+
+- **Persona kampus**: aturan poin kini data runtime (`institution_presets` +
+  `skm_point_rules`, seed ITS SKEM 1000 / UNAIR SKP 75 / Tel-U TAK 60 /
+  BINUS SAT 120+30 jam sosial / Kustom = baseline lama). Pemilih persona di
+  `/skm`; konversi antar persona satu transaksi RPC lewat `equivalence_key`;
+  entri manual tidak diubah diam-diam. Provenance `tingkat`/`rule_id`/
+  `jam_sosial` tersimpan di `skm_activities`.
+- **Mutasi terpusat** (`src/lib/skm-actions.ts`) dengan validasi
+  server-side; CHECK `poin_skm >= 0` di DB.
+- **Agregasi tunggal** `src/lib/skm-aggregate.ts` (dipakai /skm, dashboard,
+  portfolioMarkdown) — mendukung cap kategori dan total jam sosial.
+- **LinkedIn Assistant AI (RAG)**: tombol "Tulis ulang dengan AI" muncul bila
+  `GEMINI_API_KEY` diset; retrieval dari korpus `docs/branding-kb/` via
+  pgvector; cache + riwayat draft di `linkedin_drafts`; tanpa key, template
+  deterministik lama tetap bekerja penuh. Lihat `docs/RILIS-v1.0.md`.

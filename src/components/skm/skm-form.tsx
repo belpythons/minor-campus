@@ -1,8 +1,7 @@
-"use client";
-
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useRefresh } from "@/hooks/use-refresh";
 import { Save, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,8 @@ import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { UnsavedBar } from "@/components/shared/unsaved-bar";
 import { createClient } from "@/lib/supabase/client";
 import { removePublicFile, uploadPublicFile } from "@/lib/upload";
-import { rulesFor, suggestPoin } from "@/lib/skm-points";
+import { deleteSkmActivity, saveSkmActivity } from "@/lib/skm-actions";
+import type { SkmPointRule } from "@/lib/skm-preset";
 import { MAX_CERTIFICATE_SIZE, SKM_KATEGORI, STORAGE_BUCKET_CERTIFICATES } from "@/lib/constants";
 import { todayISO } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
@@ -39,13 +39,27 @@ interface FormState {
   tanggalMulai: string;
   tanggalSelesai: string;
   poin: string;
+  jamSosial: string;
   tags: string[];
   deskripsi: string;
   credentialId: string;
 }
 
-export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActivity }) {
-  const router = useRouter();
+export function SkmForm({
+  userId,
+  initial,
+  rules,
+  withJamSosial = false,
+}: {
+  userId: string;
+  initial?: SkmActivity;
+  /** Aturan poin persona aktif — mengisi dropdown Tingkat/Peran. */
+  rules: SkmPointRule[];
+  /** Persona BINUS: tampilkan input jam kegiatan sosial. */
+  withJamSosial?: boolean;
+}) {
+  const navigate = useNavigate();
+  const refresh = useRefresh();
   const isEdit = Boolean(initial);
   const confirm = useConfirm();
 
@@ -57,6 +71,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
       tanggalMulai: initial?.tanggal_mulai ?? todayISO(),
       tanggalSelesai: initial?.tanggal_selesai ?? "",
       poin: String(initial?.poin_skm ?? 0),
+      jamSosial: initial?.jam_sosial != null ? String(initial.jam_sosial) : "",
       tags: initial?.skill_tags ?? [],
       deskripsi: initial?.deskripsi ?? "",
       credentialId: initial?.credential_id ?? "",
@@ -65,7 +80,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
   );
 
   const [form, setForm] = React.useState<FormState>(initialState);
-  const [tingkat, setTingkat] = React.useState(NO_TINGKAT);
+  const [tingkat, setTingkat] = React.useState(initial?.rule_id ?? NO_TINGKAT);
   const [file, setFile] = React.useState<File | null>(null);
   const [removeExisting, setRemoveExisting] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -88,7 +103,10 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
     });
   }
 
-  const tingkatOptions = React.useMemo(() => rulesFor(form.kategori), [form.kategori]);
+  const tingkatOptions = React.useMemo(
+    () => rules.filter((r) => r.kategori === form.kategori),
+    [rules, form.kategori],
+  );
 
   function onKategoriChange(value: string) {
     set("kategori", value);
@@ -98,8 +116,8 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
   function onTingkatChange(value: string) {
     setTingkat(value);
     if (value === NO_TINGKAT) return;
-    const suggested = suggestPoin(form.kategori, value);
-    if (suggested) set("poin", String(suggested));
+    const rule = rules.find((r) => r.id === value);
+    if (rule) set("poin", String(rule.poin));
   }
 
   function validate() {
@@ -111,6 +129,9 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
       next.tanggalSelesai = "Tanggal selesai tidak boleh lebih awal dari tanggal mulai.";
     }
     if (Number(form.poin) < 0) next.poin = "Poin tidak boleh negatif.";
+    if (form.jamSosial.trim() !== "" && !(Number(form.jamSosial) >= 0)) {
+      next.jamSosial = "Jam sosial harus angka 0 atau lebih.";
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -142,8 +163,9 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
         );
       }
 
+      const selectedRule = rules.find((r) => r.id === tingkat) ?? null;
       const payload = {
-        user_id: userId,
+        id: initial?.id,
         judul: form.judul.trim(),
         kategori: form.kategori,
         penyelenggara: form.penyelenggara.trim(),
@@ -154,13 +176,13 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
         skill_tags: form.tags.length ? form.tags : null,
         certificate_url: certificateUrl,
         credential_id: form.credentialId.trim() || null,
+        tingkat: selectedRule?.tingkat ?? initial?.tingkat ?? null,
+        rule_id: selectedRule?.id ?? null,
+        jam_sosial: form.jamSosial.trim() === "" ? null : Number(form.jamSosial),
       };
 
-      const { error } = isEdit
-        ? await supabase.from("skm_activities").update(payload).eq("id", initial!.id)
-        : await supabase.from("skm_activities").insert(payload);
-
-      if (error) throw error;
+      const result = await saveSkmActivity(payload);
+      if ("error" in result) throw new Error(result.error);
 
       // Only once the row is safely written does the old file go.
       if ((file || removeExisting) && previousUrl && previousUrl !== certificateUrl) {
@@ -171,8 +193,8 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
         description: `${payload.judul} · ${payload.poin_skm} poin`,
       });
 
-      router.push("/skm");
-      router.refresh();
+      navigate("/skm");
+      refresh();
     } catch (err) {
       notifyError("Gagal menyimpan kegiatan", { description: describeError(err) });
       setBusy(false);
@@ -184,22 +206,21 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
     if (!initial) return;
     confirm.setLoading(true);
 
-    const supabase = createClient();
-    const { error } = await supabase.from("skm_activities").delete().eq("id", initial.id);
+    const result = await deleteSkmActivity(initial.id);
 
-    if (error) {
-      notifyError("Gagal menghapus kegiatan", { description: describeError(error) });
+    if ("error" in result) {
+      notifyError("Gagal menghapus kegiatan", { description: describeError(result.error) });
       confirm.close();
       return;
     }
 
     // Row is gone; now the certificate can be discarded safely.
-    await removePublicFile(supabase, STORAGE_BUCKET_CERTIFICATES, initial.certificate_url);
+    await removePublicFile(createClient(), STORAGE_BUCKET_CERTIFICATES, initial.certificate_url);
 
     notifySuccess("Kegiatan SKM dihapus", { description: initial.judul });
     confirm.close();
-    router.push("/skm");
-    router.refresh();
+    navigate("/skm");
+    refresh();
   }
 
   return (
@@ -242,7 +263,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
                 <SelectContent>
                   <SelectItem value={NO_TINGKAT}>Isi poin manual</SelectItem>
                   {tingkatOptions.map((r) => (
-                    <SelectItem key={r.tingkat} value={r.tingkat}>
+                    <SelectItem key={r.id} value={r.id}>
                       {r.tingkat} — {r.poin} poin
                     </SelectItem>
                   ))}
@@ -277,7 +298,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
               <Input
                 {...fieldAria("penyelenggara", errors.penyelenggara)}
                 maxLength={255}
-                placeholder="mis. Kementerian Kominfo / Dicoding Indonesia / HMTI STITEK"
+                placeholder="mis. Kementerian Kominfo / Dicoding Indonesia / HMTI USTB"
                 value={form.penyelenggara}
                 onChange={(e) => set("penyelenggara", e.target.value)}
               />
@@ -323,6 +344,26 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
                   onChange={(e) => set("poin", e.target.value)}
                 />
               </Field>
+
+              {withJamSosial && (
+                <Field
+                  label="Jam Kegiatan Sosial"
+                  htmlFor="jamsos"
+                  optional="opsional"
+                  hint="Dihitung ke bar jam sosial persona (syarat BINUS: 30 jam)."
+                  error={errors.jamSosial}
+                >
+                  <Input
+                    {...fieldAria("jamsos", errors.jamSosial)}
+                    type="number"
+                    min={0}
+                    step="0.5"
+                    inputMode="decimal"
+                    value={form.jamSosial}
+                    onChange={(e) => set("jamSosial", e.target.value)}
+                  />
+                </Field>
+              )}
             </div>
 
             <Field
@@ -414,7 +455,7 @@ export function SkmForm({ userId, initial }: { userId: string; initial?: SkmActi
               {busy ? "Menyimpan…" : "Simpan Kegiatan"}
             </Button>
             <Button asChild variant="outline" disabled={busy}>
-              <Link href="/skm">Batal</Link>
+              <Link to="/skm">Batal</Link>
             </Button>
           </div>
 

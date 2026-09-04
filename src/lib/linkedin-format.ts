@@ -1,5 +1,6 @@
 import type { SkmActivity } from "./types";
 import { formatBulanSingkat, formatTanggal } from "./format";
+import { aggregateSkm } from "./skm-aggregate";
 import { ORG } from "./constants";
 
 export type LinkedInSection = "experience" | "certification" | "award";
@@ -53,7 +54,12 @@ function dateRange(a: SkmActivity): string {
  * Text blocks ready to paste into LinkedIn.
  * Layout follows modul-skm/03-FITUR-LINKEDIN-ASSISTANT.md exactly.
  */
-export function formatForLinkedIn(a: SkmActivity, section: LinkedInSection): string {
+/** `instansi` mengikuti profil/persona pengguna; default = kampus bawaan. */
+export function formatForLinkedIn(
+  a: SkmActivity,
+  section: LinkedInSection,
+  instansi: string = ORG.kampus,
+): string {
   const skills = skillsLine(a.skill_tags);
 
   if (section === "experience") {
@@ -82,7 +88,7 @@ export function formatForLinkedIn(a: SkmActivity, section: LinkedInSection): str
 
   const lines = [
     `Title: ${a.judul}`,
-    `Associated with: ${ORG.kampus}`,
+    `Associated with: ${instansi}`,
     `Issuer: ${a.penyelenggara}`,
     `Issue Date: ${formatTanggal(a.tanggal_mulai).replace(/^\d+\s/, "")}`,
   ];
@@ -93,7 +99,7 @@ export function formatForLinkedIn(a: SkmActivity, section: LinkedInSection): str
 
 /** Whole-portfolio Markdown summary — for a personal GitHub README. */
 export function portfolioMarkdown(activities: SkmActivity[], nama: string): string {
-  const total = activities.reduce((s, a) => s + (a.poin_skm ?? 0), 0);
+  const total = aggregateSkm(activities).totalRaw;
   const out: string[] = [
     `# Portofolio Kegiatan — ${nama}`,
     "",

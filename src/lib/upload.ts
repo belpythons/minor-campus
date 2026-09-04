@@ -24,7 +24,7 @@ export async function uploadPublicFile(
   file: File,
   onProgress?: (percent: number) => void,
 ): Promise<string> {
-  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const safeName = file.name.replace(/[^\w.-]+/g, "_");
   const path = `${userId}/${Date.now()}-${safeName}`;
 
   const {
