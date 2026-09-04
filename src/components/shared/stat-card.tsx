@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 
 import { Card } from "@/components/ui/card";
@@ -42,7 +44,7 @@ function IconSlot({ icon, tone }: { icon: React.ReactNode; tone: Tone }) {
   return (
     <span
       className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-xl border border-foreground [&_svg]:size-4",
+        "flex size-8 shrink-0 items-center justify-center rounded-md [&_svg]:size-4",
         TONE_BG[tone],
       )}
       aria-hidden

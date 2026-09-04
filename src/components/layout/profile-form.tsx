@@ -1,5 +1,7 @@
+"use client";
+
 import * as React from "react";
-import { useRefresh } from "@/hooks/use-refresh";
+import { useRouter } from "next/navigation";
 import { FileSignature, Save, UserCog } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,21 +26,14 @@ export function ProfileForm({
   email: string;
   initial: Profile | null;
 }) {
-  const refresh = useRefresh();
-
-  /*
-    handle_new_user() memasang '-' sebagai placeholder ketika pendaftaran tidak
-    membawa NIM. Memperlakukan placeholder itu sebagai nilai sah akan mengunci
-    pengguna selamanya pada tanda hubung — sama seperti syarat pada trigger
-    profiles_identity_locked.
-  */
-  const nimLocked = Boolean(initial?.nim && initial.nim !== "-");
+  const router = useRouter();
 
   const initialState = React.useMemo(
     () => ({
       nama_lengkap: initial?.nama_lengkap ?? "",
-      nim: nimLocked ? initial!.nim : "",
+      nim: initial?.nim ?? "",
       prodi: initial?.prodi ?? "Teknik Informatika",
+      instansi: initial?.instansi ?? ORG.kampus,
       tempat_kp: initial?.tempat_kp ?? ORG.perusahaanMixed,
       pembimbing_nama: initial?.pembimbing_nama ?? "",
       pembimbing_jabatan: initial?.pembimbing_jabatan ?? "",
@@ -46,7 +41,7 @@ export function ProfileForm({
       periode_mulai: initial?.periode_mulai ?? "",
       periode_selesai: initial?.periode_selesai ?? "",
     }),
-    [initial, nimLocked],
+    [initial],
   );
 
   const [form, setForm] = React.useState(initialState);
@@ -69,7 +64,7 @@ export function ProfileForm({
   function validate() {
     const next: Record<string, string> = {};
     if (!form.nama_lengkap.trim()) next.nama_lengkap = "Nama lengkap wajib diisi.";
-    if (!nimLocked && !form.nim.trim()) next.nim = "NIM wajib diisi.";
+    if (!form.nim.trim()) next.nim = "NIM wajib diisi.";
     if (
       form.periode_mulai &&
       form.periode_selesai &&
@@ -109,15 +104,9 @@ export function ProfileForm({
           id: userId,
           email,
           nama_lengkap: form.nama_lengkap.trim(),
-          /*
-            nim hanya ikut selama belum terkunci; instansi tidak pernah ikut.
-            Trigger profiles_identity_locked menolak perubahan keduanya begitu
-            bernilai nyata, jadi mengirimkannya kembali akan menggagalkan
-            seluruh simpanan hanya karena kolom yang memang tidak berubah.
-          */
-          ...(nimLocked ? {} : { nim: form.nim.trim() }),
-          ...(initial ? {} : { instansi: ORG.kampus }),
+          nim: form.nim.trim(),
           prodi: form.prodi.trim() || null,
+          instansi: form.instansi.trim() || null,
           tempat_kp: form.tempat_kp.trim() || null,
           pembimbing_nama: form.pembimbing_nama.trim() || null,
           pembimbing_jabatan: form.pembimbing_jabatan.trim() || null,
@@ -147,7 +136,7 @@ export function ProfileForm({
     notifySuccess("Profil tersimpan", {
       description: "Kop surat dan blok pengesahan pada kedua dokumen cetak ikut diperbarui.",
     });
-    refresh();
+    router.refresh();
   }
 
   const pengesahanKosong = !form.pembimbing_nama.trim();
@@ -162,7 +151,7 @@ export function ProfileForm({
               Identitas Mahasiswa
             </CardTitle>
             <CardDescription>
-              Mengisi identitas pada Formulir 2 dan Section I dokumen rekap magang.
+              Mengisi kop Formulir 2 STITEK dan Section I dokumen rekap PT Badak NGL.
             </CardDescription>
           </CardHeader>
 
@@ -177,35 +166,13 @@ export function ProfileForm({
                 />
               </Field>
 
-              {nimLocked ? (
-                <Field
-                  label="NIM"
-                  htmlFor="nim"
-                  hint="Terkunci sejak pendaftaran. Hubungi admin bila keliru."
-                >
-                  <Input
-                    {...fieldAria("nim")}
-                    value={initial!.nim}
-                    readOnly
-                    disabled
-                    className="cursor-not-allowed bg-muted text-muted-foreground"
-                  />
-                </Field>
-              ) : (
-                <Field
-                  label="NIM"
-                  htmlFor="nim"
-                  required
-                  error={errors.nim}
-                  hint="Sekali disimpan, NIM tidak bisa diubah lagi. Periksa dulu."
-                >
-                  <Input
-                    {...fieldAria("nim", errors.nim)}
-                    value={form.nim}
-                    onChange={(e) => set("nim", e.target.value)}
-                  />
-                </Field>
-              )}
+              <Field label="NIM" htmlFor="nim" required error={errors.nim}>
+                <Input
+                  {...fieldAria("nim", errors.nim)}
+                  value={form.nim}
+                  onChange={(e) => set("nim", e.target.value)}
+                />
+              </Field>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
@@ -217,17 +184,11 @@ export function ProfileForm({
                 />
               </Field>
 
-              <Field
-                label="Instansi / Sekolah"
-                htmlFor="instansi"
-                hint="Terkunci sejak pendaftaran."
-              >
+              <Field label="Instansi / Sekolah" htmlFor="instansi">
                 <Input
                   {...fieldAria("instansi")}
-                  value={initial?.instansi ?? ORG.kampus}
-                  readOnly
-                  disabled
-                  className="cursor-not-allowed bg-muted text-muted-foreground"
+                  value={form.instansi}
+                  onChange={(e) => set("instansi", e.target.value)}
                 />
               </Field>
 
@@ -309,7 +270,7 @@ export function ProfileForm({
             </div>
 
             {pengesahanKosong && (
-              <p className="rounded-md border border-foreground bg-muted/50 px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
+              <p className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-[12px] leading-relaxed text-muted-foreground">
                 Dibiarkan kosong: Formulir 2 akan memakai pembimbing yang paling sering muncul pada
                 entri log book Anda, dan dokumen rekap hanya menampilkan nama perusahaan.
               </p>

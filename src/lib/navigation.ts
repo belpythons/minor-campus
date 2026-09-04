@@ -4,8 +4,6 @@ import {
   CalendarPlus,
   ClipboardCopy,
   FileText,
-  FolderKanban,
-  HelpCircle,
   LayoutDashboard,
   NotebookPen,
   Printer,
@@ -81,20 +79,9 @@ export const NAV_GROUPS: NavGroup[] = [
         label: "Log Book",
         icon: BookOpen,
         matches: ["/logbook/"],
-        excludes: [
-          "/logbook/new",
-          "/logbook/supervisors",
-          "/logbook/rekap",
-          "/logbook/projects",
-        ],
+        excludes: ["/logbook/new", "/logbook/supervisors", "/logbook/rekap"],
       },
       { href: "/logbook/new", label: "Tambah Entri", icon: CalendarPlus },
-      {
-        href: "/logbook/projects",
-        label: "Proyek Konsultasi",
-        icon: FolderKanban,
-        matches: ["/logbook/projects/"],
-      },
       { href: "/logbook/supervisors", label: "Pembimbing", icon: Users },
       { href: "/logbook/rekap", label: "Rekap Konsultasi", icon: NotebookPen },
     ],
@@ -102,10 +89,6 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Akun",
     items: [{ href: "/account", label: "Profil & Pengesahan", icon: UserCog }],
-  },
-  {
-    title: "Bantuan",
-    items: [{ href: "/faq", label: "FAQ & Tentang", icon: HelpCircle }],
   },
 ];
 

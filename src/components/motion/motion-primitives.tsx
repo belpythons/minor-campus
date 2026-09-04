@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import {
   AnimatePresence,
@@ -55,12 +57,12 @@ export function FadeIn({
   );
 }
 
-export const staggerParent: Variants = {
+const staggerParent: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.045, delayChildren: 0.02 } },
 };
 
-export const staggerChild: Variants = {
+const staggerChild: Variants = {
   hidden: { opacity: 0, y: 10 },
   show: { opacity: 1, y: 0, transition: EASE },
 };

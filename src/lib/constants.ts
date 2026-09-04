@@ -24,21 +24,15 @@ export const SKM_TARGET_POIN = 50;
 
 export const STORAGE_BUCKET_CERTIFICATES = "skm-certificates";
 export const STORAGE_BUCKET_PHOTOS = "report-photos";
-export const STORAGE_BUCKET_ORG_LOGOS = "org-logos";
 
 /** Client-side photo cap — modul-task-report/02-FITUR-FORM-INPUT.md */
 export const MAX_PHOTO_SIZE = 20 * 1024 * 1024;
 /** Certificate cap (PDF/image) for the SKM module. */
 export const MAX_CERTIFICATE_SIZE = 20 * 1024 * 1024;
-/** Letterhead logo cap — docs/perbaikan/03 §2.2 */
-/** Panjang password minimum. Dipakai form daftar dan form ganti password. */
-export const MIN_PASSWORD = 6;
-
-export const MAX_LOGO_SIZE = 2 * 1024 * 1024;
 
 export const ORG = {
-  kampus: "Universitas Sains dan Teknologi Bontang",
-  kampusUpper: "UNIVERSITAS SAINS DAN TEKNOLOGI BONTANG",
+  kampus: "Sekolah Tinggi Teknologi Bontang",
+  kampusUpper: "SEKOLAH TINGGI TEKNOLOGI BONTANG",
   prodiUpper: "PROGRAM STUDI TEKNIK INFORMATIKA",
   formulirTitle: "FORM KEHADIRAN DAN AKTIFITAS KERJA PRAKTEK",
   kodeSop: "TI-SOP-17/FM-01",

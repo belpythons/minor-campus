@@ -1,3 +1,5 @@
+"use client";
+
 import { ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -35,10 +37,11 @@ export function CertificatePreview({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[65vh] items-center justify-center overflow-auto rounded-md border border-foreground bg-muted/50 p-2">
+        <div className="flex max-h-[65vh] items-center justify-center overflow-auto rounded-md border border-border bg-muted/50 p-2">
           {url && isPdf ? (
             <iframe src={url} title={`Sertifikat ${activity?.judul}`} className="h-[62vh] w-full rounded bg-white" />
           ) : url ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={url} alt={`Sertifikat ${activity?.judul}`} className="max-h-[62vh] w-auto rounded" />
           ) : null}
         </div>

@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 
@@ -104,7 +106,7 @@ export function FilterBar({
         </div>
       )}
 
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-foreground pt-3">
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
         <p className="text-[12px] text-muted-foreground" aria-live="polite">
           {filtered ? (
             <>

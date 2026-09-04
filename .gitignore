@@ -9,10 +9,12 @@
 # testing
 /coverage
 
-# build output — Vite writes both; keduanya sebelumnya tidak terdaftar sama
-# sekali, jadi satu `git add .` sudah cukup untuk mengikutkan 2,7 MB artefak.
-/dist/
-/dev-dist/
+# next.js
+/.next/
+/out/
+
+# production
+/build
 
 # misc
 .DS_Store
@@ -31,14 +33,4 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-
-# QA screenshots
-/qa-shots/
-
-# Dokumen sumber di root: acuan tata letak Formulir 2 dan data seed demo.
-# Sengaja tidak dihapus — ketiganya masih dipakai scripts/seed-demo-data.mjs dan
-# saat memverifikasi hasil cetak — tapi memuat nama mahasiswa asli, jadi tidak
-# boleh ikut ter-commit.
-/*.xlsx
-/*.docx
-/*.pdf
+next-env.d.ts

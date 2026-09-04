@@ -1,23 +1,18 @@
+"use client";
+
 import * as React from "react";
-import { useRefresh } from "@/hooks/use-refresh";
+import { useRouter } from "next/navigation";
 import { Pencil, Plus, Save, Trash2, Users, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, fieldAria } from "@/components/shared/field";
 import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
-import { deleteSupervisor, saveSupervisor } from "@/lib/logbook-actions";
+import { createClient } from "@/lib/supabase/client";
 import { describeError, notifyError, notifySuccess, notifyWarning } from "@/lib/notify";
 import { Collapsible, Stagger, StaggerItem } from "@/components/motion/motion-primitives";
 import type { Supervisor } from "@/lib/types";
@@ -26,22 +21,16 @@ export interface SupervisorRow extends Supervisor {
   jumlahKonsultasi: number;
 }
 
-const EMPTY_DRAFT = {
-  nama: "",
-  jabatan: "",
-  departemen: "",
-  peran: "",
-  prioritas: "100",
-  bidang: "",
-  catatanGaya: "",
-};
+const EMPTY_DRAFT = { nama: "", jabatan: "", departemen: "" };
 
-/** Peran persona konsultan (dok 04 §3.3). */
-const PERAN_OPTIONS = ["Pembimbing Utama", "Pendamping", "Penguji", "Mentor", "Rekan"];
-const NO_PERAN = "__none__";
-
-export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
-  const refresh = useRefresh();
+export function SupervisorManager({
+  rows,
+  userId,
+}: {
+  rows: SupervisorRow[];
+  userId: string;
+}) {
+  const router = useRouter();
   const confirm = useConfirm();
 
   const [mode, setMode] = React.useState<"idle" | "add" | { id: string }>("idle");
@@ -60,15 +49,7 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
   }
 
   function startEdit(s: Supervisor) {
-    setDraft({
-      nama: s.nama,
-      jabatan: s.jabatan ?? "",
-      departemen: s.departemen ?? "",
-      peran: s.peran ?? "",
-      prioritas: String(s.prioritas ?? 100),
-      bidang: (s.bidang_keahlian ?? []).join(", "),
-      catatanGaya: s.catatan_gaya ?? "",
-    });
+    setDraft({ nama: s.nama, jabatan: s.jabatan ?? "", departemen: s.departemen ?? "" });
     setErrors({});
     setMode({ id: s.id });
   }
@@ -87,39 +68,49 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
     }
 
     setBusy(true);
-    const bidang = draft.bidang
-      .split(",")
-      .map((b) => b.trim())
-      .filter(Boolean);
-
-    /*
-      Rename + sinkronisasi salinan denormalisasi di logbook_entries kini satu
-      transaksi RPC (P2-3) — salinan basi sunyi tidak mungkin lagi terjadi.
-    */
-    const result = await saveSupervisor({
-      id: editingId ?? undefined,
+    const supabase = createClient();
+    const payload = {
       nama: draft.nama.trim(),
       jabatan: draft.jabatan.trim() || null,
       departemen: draft.departemen.trim() || null,
-      peran: draft.peran || null,
-      prioritas: Math.max(1, Math.min(999, Number(draft.prioritas) || 100)),
-      bidang_keahlian: bidang.length ? bidang : null,
-      catatan_gaya: draft.catatanGaya.trim() || null,
-    });
+    };
 
-    if ("error" in result) {
-      notifyError("Gagal menyimpan pembimbing", { description: describeError(result.error) });
+    const { error } = editingId
+      ? await supabase.from("supervisors").update(payload).eq("id", editingId)
+      : await supabase.from("supervisors").insert({ ...payload, user_id: userId });
+
+    if (error) {
+      notifyError("Gagal menyimpan pembimbing", { description: describeError(error) });
       setBusy(false);
       return;
     }
 
+    /*
+      Existing log book rows keep a denormalised copy of the name and title so
+      an already-printed Formulir 2 stays reproducible. Renaming the supervisor
+      therefore has to update those rows too, or the printed form and the list
+      would disagree.
+    */
+    if (editingId) {
+      const { error: syncError } = await supabase
+        .from("logbook_entries")
+        .update({ pembimbing_nama: payload.nama, pembimbing_jabatan: payload.jabatan })
+        .eq("supervisor_id", editingId);
+
+      if (syncError) {
+        notifyWarning("Pembimbing tersimpan, tetapi entri lama belum ikut diperbarui", {
+          description: describeError(syncError),
+        });
+      }
+    }
+
     notifySuccess(editingId ? "Data pembimbing diperbarui" : "Pembimbing ditambahkan", {
-      description: draft.nama.trim(),
+      description: payload.nama,
     });
 
     setBusy(false);
     cancel();
-    refresh();
+    router.refresh();
   }
 
   function askDelete(s: SupervisorRow) {
@@ -137,10 +128,11 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
     if (!pendingDelete) return;
     confirm.setLoading(true);
 
-    const result = await deleteSupervisor(pendingDelete.id);
+    const supabase = createClient();
+    const { error } = await supabase.from("supervisors").delete().eq("id", pendingDelete.id);
 
-    if ("error" in result) {
-      notifyError("Gagal menghapus pembimbing", { description: describeError(result.error) });
+    if (error) {
+      notifyError("Gagal menghapus pembimbing", { description: describeError(error) });
       confirm.close();
       return;
     }
@@ -148,7 +140,7 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
     notifySuccess("Pembimbing dihapus", { description: pendingDelete.nama });
     confirm.close();
     setPendingDelete(null);
-    refresh();
+    router.refresh();
   }
 
   return (
@@ -199,72 +191,6 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
               </Field>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field
-                label="Peran Konsultasi"
-                htmlFor="m-peran"
-                optional="untuk proyek"
-                hint="Persona pada proyek konsultasi multi-pembimbing."
-              >
-                <Select
-                  value={draft.peran || NO_PERAN}
-                  onValueChange={(v) =>
-                    setDraft((d) => ({ ...d, peran: v === NO_PERAN ? "" : v }))
-                  }
-                >
-                  <SelectTrigger id="m-peran">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_PERAN}>Tidak ditentukan</SelectItem>
-                    {PERAN_OPTIONS.map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {p}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field
-                label="Prioritas Otoritas"
-                htmlFor="m-prioritas"
-                hint="Kecil = lebih otoritatif; rekomendasi tie-break saat saran bentrok."
-              >
-                <Input
-                  {...fieldAria("m-prioritas", null, true)}
-                  type="number"
-                  min={1}
-                  max={999}
-                  inputMode="numeric"
-                  value={draft.prioritas}
-                  onChange={(e) => setDraft((d) => ({ ...d, prioritas: e.target.value }))}
-                />
-              </Field>
-
-              <Field
-                label="Bidang Keahlian"
-                htmlFor="m-bidang"
-                optional="pisahkan dengan koma"
-              >
-                <Input
-                  {...fieldAria("m-bidang")}
-                  placeholder="mis. Metodologi, Statistika"
-                  value={draft.bidang}
-                  onChange={(e) => setDraft((d) => ({ ...d, bidang: e.target.value }))}
-                />
-              </Field>
-            </div>
-
-            <Field label="Catatan Gaya Komunikasi" htmlFor="m-gaya" optional="opsional">
-              <Input
-                {...fieldAria("m-gaya")}
-                placeholder="mis. Suka data konkret; hindari asumsi tanpa referensi"
-                value={draft.catatanGaya}
-                onChange={(e) => setDraft((d) => ({ ...d, catatanGaya: e.target.value }))}
-              />
-            </Field>
-
             {editingId && (
               <p className="text-[11.5px] leading-relaxed text-muted-foreground">
                 Perubahan nama dan jabatan ikut diterapkan pada seluruh entri log book pembimbing
@@ -302,7 +228,7 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
         ) : (
           <>
             {/* --- Mobile cards --- */}
-            <Stagger className="divide-y-2 divide-foreground lg:hidden" as="ul">
+            <Stagger className="divide-y divide-border lg:hidden" as="ul">
               {rows.map((s) => (
                 <StaggerItem key={s.id} as="li" className="p-4">
                   <div className="flex items-start justify-between gap-3">

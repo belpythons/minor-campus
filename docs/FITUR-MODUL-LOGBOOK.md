@@ -8,12 +8,12 @@ Implementasi dari `QOL/modul-logbook/`. Modul ini mencatat aktivitas Kerja Prakt
 
 | Rute | Berkas | Fungsi |
 |---|---|---|
-| `/logbook` | `src/pages/logbook/LogbookPage.tsx` | Daftar entri + filter pembimbing + 4 KPI |
-| `/logbook/new` | `src/pages/logbook/LogbookFormPage.tsx` | Form tambah entri / konsultasi |
-| `/logbook/[id]/edit` | `src/pages/logbook/LogbookFormPage.tsx` | Ubah + hapus |
-| `/logbook/supervisors` | `src/pages/logbook/SupervisorsPage.tsx` | CRUD pembimbing + hitungan konsultasi |
-| `/logbook/rekap` | `src/pages/logbook/RekapKonsultasiPage.tsx` | Rekap konsultasi dikelompokkan per atasan |
-| `/print/formulir2` | `src/pages/print/Formulir2Page.tsx` | Dokumen cetak A4 Formulir 2 |
+| `/logbook` | `src/app/(app)/logbook/page.tsx` | Daftar entri + filter pembimbing + 4 KPI |
+| `/logbook/new` | `src/app/(app)/logbook/new/page.tsx` | Form tambah entri / konsultasi |
+| `/logbook/[id]/edit` | `src/app/(app)/logbook/[id]/edit/page.tsx` | Ubah + hapus |
+| `/logbook/supervisors` | `src/app/(app)/logbook/supervisors/page.tsx` | CRUD pembimbing + hitungan konsultasi |
+| `/logbook/rekap` | `src/app/(app)/logbook/rekap/page.tsx` | Rekap konsultasi dikelompokkan per atasan |
+| `/print/formulir2` | `src/app/print/formulir2/page.tsx` | Dokumen cetak A4 Formulir 2 |
 
 Komponen: `src/components/logbook/{logbook-form,logbook-table,supervisor-manager}.tsx`
 Query bersama: `src/lib/logbook-query.ts`
@@ -174,24 +174,3 @@ Rincian lengkap: [UX-QA-AUDIT.md](UX-QA-AUDIT.md)
 - **Tampilan mobile**: tabel 6 kolom diganti kartu; nama dan jabatan pembimbing
   dikelompokkan dalam blok tersendiri.
 - **Toolbar cetak** menyertakan pengingat margin 2,5 cm dan A4 portrait.
-
----
-
-## Pembaruan v1.0
-
-- **Proyek konsultasi multi-persona** (`/logbook/projects`): proyek →
-  konsultan (persona: peran, prioritas otoritas, bidang keahlian) → sesi
-  (entri logbook ber-`project_id` opsional) → saran per area dengan status ala
-  ADR (diusulkan/diadopsi/ditolak/di-supersede). Imutabilitas ditegakkan
-  trigger DB; keputusan konflik (termasuk sintesis) via RPC transaksional.
-- **Briefing Pack SBAR** per proyek (layar + `/print/briefing` A4) — bekal
-  konsultan baru: situasi, kronologi + keputusan diadopsi, konflik terbuka,
-  dan pertanyaan yang disiapkan mahasiswa.
-- **Alur konflik tiga-pilihan** saat mencatat saran pada area yang sudah punya
-  saran: menguatkan / bentrok / area lain.
-- **Pengerasan**: supervisor baru + entri = satu transaksi RPC (P0-4);
-  renumber atomik (P0-5); halaman detail `/logbook/[id]` (P2-1); export
-  CSV/XLSX `?dataset=logbook` (P2-2); rename pembimbing tersinkron atomik ke
-  salinan denormalisasi (P2-3); `updated_at` otomatis (P1-6).
-- **Formulir 2 TI-SOP-17/FM-01 tidak berubah** — seluruh kekayaan data baru
-  hidup di layar dan Briefing Pack.

@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { FileText, Paperclip, Trash2, UploadCloud } from "lucide-react";
 
@@ -113,16 +115,17 @@ export function FilePicker({
       )}
 
       {file && (
-        <div className="flex items-start gap-3 rounded-md border border-foreground bg-card p-2.5">
+        <div className="flex items-start gap-3 rounded-md border border-border bg-card p-2.5">
           {previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={previewUrl}
               alt=""
-              className="size-14 shrink-0 rounded-md border border-foreground object-cover"
+              className="size-14 shrink-0 rounded border border-border object-cover"
             />
           ) : (
             <span
-              className="flex size-14 shrink-0 items-center justify-center rounded border border-foreground bg-muted text-muted-foreground"
+              className="flex size-14 shrink-0 items-center justify-center rounded border border-border bg-muted text-muted-foreground"
               aria-hidden
             >
               <FileText className="size-5" />
@@ -161,7 +164,7 @@ export function FilePicker({
       )}
 
       {existingUrl && !file && (
-        <div className="flex items-center gap-2 rounded-md border border-foreground bg-muted/40 px-2.5 py-2">
+        <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-2.5 py-2">
           <Paperclip className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
           <p className="min-w-0 flex-1 text-[12px] text-muted-foreground">
             Sudah ada berkas terunggah.{" "}

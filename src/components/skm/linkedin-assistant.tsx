@@ -1,20 +1,13 @@
+"use client";
+
 import * as React from "react";
-import { Link } from "react-router-dom";
-import {
-  Award,
-  Check,
-  ClipboardCopy,
-  FileCode2,
-  Plus,
-  RefreshCw,
-  Sparkles,
-} from "lucide-react";
+import Link from "next/link";
+import { Award, Check, ClipboardCopy, FileCode2, Plus } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -23,9 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/shared/empty-state";
-import { createClient } from "@/lib/supabase/client";
-import { generateDraft } from "@/lib/linkedin-client";
-import { describeError, notifyError, notifySuccess } from "@/lib/notify";
+import { notifyError, notifySuccess } from "@/lib/notify";
 import {
   LINKEDIN_SECTIONS,
   defaultSectionFor,
@@ -91,29 +82,12 @@ function CopyButton({
   );
 }
 
-type AiState =
-  | { phase: "idle" }
-  | { phase: "loading" }
-  | { phase: "success"; draft: string; id: string | null; cached: boolean }
-  | { phase: "error"; message: string };
-
-interface DraftRow {
-  id: string;
-  draft: string;
-  model: string;
-  created_at: string;
-}
-
 export function LinkedInAssistant({
   activities,
   nama,
-  instansi = null,
-  aiConfigured = false,
 }: {
   activities: SkmActivity[];
   nama: string;
-  instansi?: string | null;
-  aiConfigured?: boolean;
 }) {
   const [selectedId, setSelectedId] = React.useState(activities[0]?.id ?? "");
   const selected = activities.find((a) => a.id === selectedId) ?? null;
@@ -122,72 +96,9 @@ export function LinkedInAssistant({
     activities[0] ? defaultSectionFor(activities[0].kategori) : "experience",
   );
 
-  const [bahasa, setBahasa] = React.useState<"id" | "en">("id");
-  const [ai, setAi] = React.useState<AiState>({ phase: "idle" });
-  const [history, setHistory] = React.useState<DraftRow[]>([]);
-
-  // Ganti entri/seksi → hasil AI lama tidak relevan lagi; muat riwayatnya.
-  React.useEffect(() => {
-    setAi({ phase: "idle" });
-    if (!aiConfigured || !selectedId) {
-      setHistory([]);
-      return;
-    }
-    let cancelled = false;
-    createClient()
-      .from("linkedin_drafts")
-      .select("id, draft, model, created_at")
-      .eq("activity_id", selectedId)
-      .eq("seksi", section)
-      .order("created_at", { ascending: false })
-      .limit(5)
-      .then(({ data }) => {
-        if (!cancelled) setHistory((data ?? []) as DraftRow[]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [aiConfigured, selectedId, section]);
-
-  async function generate(force: boolean) {
-    if (!selected) return;
-    setAi({ phase: "loading" });
-    try {
-      const data = await generateDraft({
-        activity_id: selected.id,
-        seksi: section,
-        bahasa,
-        force,
-      });
-      setAi({ phase: "success", draft: data.draft, id: data.id, cached: data.cached });
-      if (!data.cached && data.id) {
-        setHistory((h) => [
-          { id: data.id!, draft: data.draft, model: "", created_at: new Date().toISOString() },
-          ...h,
-        ]);
-      }
-    } catch (err) {
-      setAi({ phase: "error", message: describeError(err) });
-    }
-  }
-
-  async function saveEdit() {
-    if (ai.phase !== "success" || !ai.id) return;
-    const { error } = await createClient()
-      .from("linkedin_drafts")
-      .update({ draft: ai.draft })
-      .eq("id", ai.id);
-    if (error) {
-      notifyError("Gagal menyimpan revisi", { description: describeError(error) });
-      return;
-    }
-    setHistory((h) => h.map((d) => (d.id === ai.id ? { ...d, draft: ai.draft } : d)));
-    notifySuccess("Revisi draft tersimpan");
-  }
-
   const output = React.useMemo(
-    () => (selected ? formatForLinkedIn(selected, section, instansi ?? undefined) : ""),
-    [selected, section, instansi],
+    () => (selected ? formatForLinkedIn(selected, section) : ""),
+    [selected, section],
   );
 
   const markdown = React.useMemo(() => portfolioMarkdown(activities, nama), [activities, nama]);
@@ -206,7 +117,7 @@ export function LinkedInAssistant({
           description="Tambahkan minimal satu kegiatan — prestasi, organisasi, atau sertifikasi — lalu kembali ke sini."
           action={
             <Button asChild variant="gradient">
-              <Link to="/skm/new">
+              <Link href="/skm/new">
                 <Plus aria-hidden />
                 Tambah Kegiatan SKM
               </Link>
@@ -221,7 +132,7 @@ export function LinkedInAssistant({
     <div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
       {/* ---- Entry picker. A horizontal rail on mobile, a list on desktop. ---- */}
       <Card className="overflow-hidden">
-        <div className="border-b border-foreground px-4 py-3">
+        <div className="border-b border-border px-4 py-3">
           <p className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
             Pilih entri SKM
           </p>
@@ -297,116 +208,6 @@ export function LinkedInAssistant({
             </CardContent>
           </Card>
         </FadeIn>
-
-        {aiConfigured && (
-          <FadeIn delay={0.03}>
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="size-4 text-muted-foreground" aria-hidden />
-                  Tulis Ulang dengan AI
-                </CardTitle>
-                <CardDescription>
-                  Draft di-ground pada panduan branding LinkedIn terkurasi (RAG). Hasil
-                  tetap bisa diedit sebelum dipakai.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap items-end gap-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ai-bahasa">Bahasa draft</Label>
-                    <Select value={bahasa} onValueChange={(v) => setBahasa(v as "id" | "en")}>
-                      <SelectTrigger id="ai-bahasa" className="w-40">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="id">Bahasa Indonesia</SelectItem>
-                        <SelectItem value="en">English</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="gradient"
-                    loading={ai.phase === "loading"}
-                    onClick={() => generate(false)}
-                  >
-                    {ai.phase !== "loading" && <Sparkles aria-hidden />}
-                    {ai.phase === "loading" ? "Menulis…" : "✨ Tulis ulang dengan AI"}
-                  </Button>
-
-                  {ai.phase === "success" && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => generate(true)}
-                    >
-                      <RefreshCw aria-hidden />
-                      Generate ulang
-                    </Button>
-                  )}
-                </div>
-
-                {ai.phase === "error" && (
-                  <p className="rounded-md border border-foreground bg-muted/50 px-3 py-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
-                    {ai.message} — teks template di atas tetap bisa dipakai sebagai
-                    fallback.
-                  </p>
-                )}
-
-                {ai.phase === "success" && (
-                  <>
-                    {ai.cached && (
-                      <Badge variant="outline">dari cache — input belum berubah</Badge>
-                    )}
-                    <Textarea
-                      aria-label="Draft AI (dapat diedit)"
-                      rows={10}
-                      className="font-mono text-[12.5px] leading-relaxed"
-                      value={ai.draft}
-                      onChange={(e) =>
-                        setAi({ ...ai, draft: e.target.value })
-                      }
-                    />
-                    <div className="flex flex-wrap gap-2">
-                      <CopyButton text={ai.draft} label="Copy Draft AI" />
-                      {ai.id && (
-                        <Button type="button" variant="outline" onClick={saveEdit}>
-                          Simpan revisi
-                        </Button>
-                      )}
-                    </div>
-                  </>
-                )}
-
-                {history.length > 0 && (
-                  <div className="space-y-1.5 border-t border-foreground pt-3">
-                    <p className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
-                      Riwayat draft ({history.length})
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {history.map((d, i) => (
-                        <Button
-                          key={d.id}
-                          type="button"
-                          variant="outline"
-                          size="xs"
-                          onClick={() =>
-                            setAi({ phase: "success", draft: d.draft, id: d.id, cached: false })
-                          }
-                        >
-                          {i === 0 ? "Terbaru" : new Date(d.created_at).toLocaleString("id-ID")}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </FadeIn>
-        )}
 
         <FadeIn delay={0.06}>
           <Card>

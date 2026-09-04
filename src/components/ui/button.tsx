@@ -5,61 +5,36 @@ import { Loader2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-/*
-  Tombol claymorphism.
-
-  Umpan balik tekan memakai `active:` CSS murni, bukan framer-motion: ia berjalan
-  di compositor, tidak pernah tertinggal di perangkat lemah, dan tetap bekerja
-  sebelum JavaScript sempat hidrasi. Menekan tombol menghilangkan bayangan
-  angkatnya sekaligus menggesernya turun 1px — permukaan liat yang rata kembali
-  ke bidang halaman.
-*/
-const PRESS = "active:translate-y-[1px] active:shadow-none";
-
 const buttonVariants = cva(
-  cn(
-    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full border border-foreground text-sm font-semibold",
-    "transition-[background-color,box-shadow,transform] duration-100",
-    "disabled:pointer-events-none disabled:opacity-55 disabled:shadow-none",
-    "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-    PRESS,
-  ),
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-[background-color,box-shadow,color,transform] duration-150 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-55 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-        /*
-          Varian `gradient` sempat jadi alias mati dari `default` pada sistem
-          neubrutalism yang tidak mengenal gradien. Claymorphism justru hidup
-          dari gradasi halus, jadi ia kembali punya arti — dan 33 pemanggil
-          lama langsung ikut tanpa satu pun disunting.
-        */
+        default:
+          "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
         gradient:
-          "bg-gradient-to-b from-primary to-primary/80 text-primary-foreground shadow-card hover:to-primary/70",
+          "bg-[linear-gradient(135deg,var(--navy)_0%,var(--blue)_100%)] text-white shadow-xs hover:brightness-110",
         destructive:
           "bg-destructive text-destructive-foreground shadow-xs hover:bg-destructive/90",
         success: "bg-success text-success-foreground shadow-xs hover:bg-success/90",
-        outline: "bg-card text-foreground shadow-xs hover:bg-accent",
-        "outline-destructive": "bg-card text-destructive shadow-xs hover:bg-destructive/10",
-        secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-accent",
-        // Ghost dan link sengaja tanpa tepi/bayangan: keduanya dipakai di dalam
-        // bilah atau permukaan yang sudah punya elevasinya sendiri.
-        ghost:
-          "border-transparent text-foreground shadow-none hover:bg-accent active:translate-y-0",
-        link: "border-transparent text-primary underline-offset-4 shadow-none hover:underline active:translate-y-0",
+        outline:
+          "border border-input bg-card text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground",
+        "outline-destructive":
+          "border border-destructive/40 bg-card text-destructive shadow-xs hover:bg-destructive/10",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost: "text-foreground hover:bg-accent hover:text-accent-foreground",
+        link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        /*
-          min-h-11 (44px), bukan h-10 — 44px adalah ambang target sentuh
-          WCAG 2.5.5, yang di sini juga berarti tombol tidak menyusut di bawah
-          ukuran nyaman jempol pada ponsel.
-        */
-        default: "min-h-11 px-5 py-2",
-        sm: "min-h-10 px-4 text-[13px]",
-        xs: "min-h-8 px-3 text-xs [&_svg]:size-3.5",
-        lg: "min-h-12 px-7",
-        icon: "size-11",
-        "icon-sm": "size-10",
+        /* 40px — comfortably above the 44px touch target once padding is
+           counted, and matches the input height. */
+        default: "h-10 px-4 py-2",
+        sm: "h-9 rounded-md px-3 text-[13px]",
+        xs: "h-8 rounded-md px-2.5 text-xs [&_svg]:size-3.5",
+        lg: "h-11 rounded-md px-6",
+        icon: "size-10",
+        "icon-sm": "size-9",
       },
     },
     defaultVariants: { variant: "default", size: "default" },

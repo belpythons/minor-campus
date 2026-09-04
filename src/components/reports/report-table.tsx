@@ -1,5 +1,7 @@
+"use client";
+
 import * as React from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { Camera, FileText, Pencil, Plus, SearchX, TriangleAlert } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -13,14 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  MotionTableRow,
-  Table,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { Pagination, paginate } from "@/components/shared/pagination";
@@ -28,7 +23,7 @@ import { useDebounced, useUrlFilters } from "@/hooks/use-url-filters";
 import { REPORT_KATEGORI } from "@/lib/constants";
 import { formatRentangJam, formatTanggal } from "@/lib/format";
 import type { ReportWithAuthor } from "@/lib/types";
-import { Stagger, StaggerItem, staggerChild } from "@/components/motion/motion-primitives";
+import { Stagger, StaggerItem } from "@/components/motion/motion-primitives";
 
 const ALL = "semua";
 const DEFAULTS = { q: "", kategori: ALL, peserta: ALL, page: "1" } as const;
@@ -103,7 +98,7 @@ export function ReportTable({
           description="Catat kegiatan magang harian Anda agar rekap dan dokumen cetak bisa dibuat."
           action={
             <Button asChild variant="gradient">
-              <Link to="/reports/new">
+              <Link href="/reports/new">
                 <Plus aria-hidden />
                 Buat Laporan
               </Link>
@@ -179,12 +174,12 @@ export function ReportTable({
         ) : (
           <>
             {/* --- Mobile cards --- */}
-            <Stagger className="divide-y-2 divide-foreground lg:hidden" as="ul">
+            <Stagger className="divide-y divide-border lg:hidden" as="ul">
               {rows.map((r) => (
                 <StaggerItem key={r.id} as="li" className="p-4">
                   <div className="flex items-start justify-between gap-3">
                     <Link
-                      to={`/reports/${r.id}`}
+                      href={`/reports/${r.id}`}
                       className="min-w-0 text-[13.5px] font-semibold leading-snug text-foreground hover:text-primary"
                     >
                       {r.judul}
@@ -215,11 +210,11 @@ export function ReportTable({
 
                   <div className="mt-3 flex gap-2">
                     <Button asChild variant="outline" size="sm" className="flex-1">
-                      <Link to={`/reports/${r.id}`}>Lihat</Link>
+                      <Link href={`/reports/${r.id}`}>Lihat</Link>
                     </Button>
                     {r.user_id === currentUserId && (
                       <Button asChild variant="outline" size="sm" className="flex-1">
-                        <Link to={`/reports/${r.id}/edit`}>
+                        <Link href={`/reports/${r.id}/edit`}>
                           <Pencil aria-hidden />
                           Ubah
                         </Link>
@@ -245,9 +240,9 @@ export function ReportTable({
                     </TableHead>
                   </TableRow>
                 </TableHeader>
-                <Stagger as="tbody">
+                <TableBody>
                   {rows.map((r) => (
-                    <MotionTableRow key={r.id} variants={staggerChild}>
+                    <TableRow key={r.id}>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatTanggal(r.tanggal)}
                       </TableCell>
@@ -265,7 +260,7 @@ export function ReportTable({
 
                       <TableCell className="max-w-[26rem]">
                         <Link
-                          to={`/reports/${r.id}`}
+                          href={`/reports/${r.id}`}
                           className="font-semibold text-foreground hover:text-primary"
                         >
                           {r.judul}
@@ -288,20 +283,20 @@ export function ReportTable({
 
                       <TableCell className="whitespace-nowrap text-right">
                         <Button asChild variant="outline" size="xs">
-                          <Link to={`/reports/${r.id}`}>Lihat</Link>
+                          <Link href={`/reports/${r.id}`}>Lihat</Link>
                         </Button>
                         {r.user_id === currentUserId && (
                           <Button asChild variant="outline" size="xs" className="ml-1.5">
-                            <Link to={`/reports/${r.id}/edit`}>
+                            <Link href={`/reports/${r.id}/edit`}>
                               <Pencil aria-hidden />
                               Ubah
                             </Link>
                           </Button>
                         )}
                       </TableCell>
-                    </MotionTableRow>
+                    </TableRow>
                   ))}
-                </Stagger>
+                </TableBody>
               </Table>
             </div>
 

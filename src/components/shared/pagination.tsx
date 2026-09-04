@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -33,7 +35,7 @@ export function Pagination({
   if (total <= pageSize) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-foreground px-4 py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3">
       <p className="text-[12.5px] text-muted-foreground" aria-live="polite">
         Menampilkan <span className="font-semibold text-foreground">{from}–{to}</span> dari{" "}
         <span className="font-semibold text-foreground">{total}</span> {label}

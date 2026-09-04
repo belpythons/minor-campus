@@ -1,4 +1,6 @@
-import { Link, useSearchParams } from "react-router-dom";
+"use client";
+
+import Link from "next/link";
 import { ChevronLeft, Printer } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,28 +21,6 @@ export function PrintToolbar({
   hint?: string;
   extra?: React.ReactNode;
 }) {
-  const [params] = useSearchParams();
-
-  /*
-    Di dalam modal pratinjau, toolbar ini akan menjadi toolbar kedua tepat di
-    bawah toolbar modal — dengan tombol Cetak yang mengerjakan hal yang sama.
-    `?embed=1` yang membedakannya; print.css tetap menyembunyikannya saat cetak.
-  */
-  if (params.get("embed") === "1") return null;
-
-  // Remote letterhead logos live on another origin; wait for them (max 3s)
-  // so the saved PDF never has a hole where the logo should be.
-  async function onPrint() {
-    const pending = Array.from(document.images).filter((img) => !img.complete);
-    if (pending.length) {
-      await Promise.race([
-        Promise.all(pending.map((img) => img.decode().catch(() => {}))),
-        new Promise((r) => setTimeout(r, 3000)),
-      ]);
-    }
-    window.print();
-  }
-
   return (
     <div className="print-toolbar">
       <div className="min-w-0">
@@ -50,12 +30,12 @@ export function PrintToolbar({
 
       <div className="flex flex-wrap gap-2">
         {extra}
-        <Button type="button" variant="gradient" size="sm" onClick={onPrint}>
+        <Button type="button" variant="gradient" size="sm" onClick={() => window.print()}>
           <Printer aria-hidden />
           Cetak / Simpan PDF
         </Button>
         <Button asChild variant="outline" size="sm">
-          <Link to={backHref}>
+          <Link href={backHref}>
             <ChevronLeft aria-hidden />
             Kembali
           </Link>

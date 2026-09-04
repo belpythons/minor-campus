@@ -1,6 +1,5 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { motion } from "@/components/motion/motion-primitives";
 
 /** Horizontal scroll is contained here so the page body never scrolls sideways. */
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
@@ -27,7 +26,7 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
     <tr
       ref={ref}
       className={cn(
-        "border-b border-foreground transition-colors last:border-0 hover:bg-accent/45 data-[state=selected]:bg-accent",
+        "border-b border-border transition-colors last:border-0 hover:bg-accent/45 data-[state=selected]:bg-accent",
         className,
       )}
       {...props}
@@ -36,22 +35,12 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 );
 TableRow.displayName = "TableRow";
 
-/**
- * TableRow yang bisa dianimasikan.
- *
- * Membungkus komponen yang sama, bukan menyalin kelasnya ke sebuah motion.tr:
- * satu salinan className akan diam-diam menyimpang begitu TableRow disunting,
- * dan tabel yang barisnya beda gaya adalah bug yang tidak akan terlihat sampai
- * ada yang mengubah border.
- */
-const MotionTableRow = motion.create(TableRow);
-
 const TableHead = React.forwardRef<HTMLTableCellElement, React.ThHTMLAttributes<HTMLTableCellElement>>(
   ({ className, ...props }, ref) => (
     <th
       ref={ref}
       className={cn(
-        "whitespace-nowrap border-b border-foreground px-3.5 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground",
+        "whitespace-nowrap border-b border-border px-3.5 py-3 text-left text-[10.5px] font-bold uppercase tracking-[0.06em] text-muted-foreground",
         className,
       )}
       {...props}
@@ -67,4 +56,4 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<
 );
 TableCell.displayName = "TableCell";
 
-export { MotionTableRow, Table, TableHeader, TableBody, TableHead, TableRow, TableCell };
+export { Table, TableHeader, TableBody, TableHead, TableRow, TableCell };
