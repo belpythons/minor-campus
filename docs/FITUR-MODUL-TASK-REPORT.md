@@ -8,16 +8,16 @@ Implementasi dari `QOL/modul-task-report/`. Modul ini mereplikasi sistem laporan
 
 | Rute | Berkas | Fungsi |
 |---|---|---|
-| `/reports/feed` | `src/pages/reports/FeedPage.tsx` | Daftar kegiatan seluruh peserta (view-only untuk milik orang lain) |
-| `/reports` | `src/pages/reports/MyReportsPage.tsx` | Laporan Saya + 4 KPI card |
-| `/reports/new` | `src/pages/reports/ReportFormPage.tsx` | Form input laporan harian |
-| `/reports/[id]` | `src/pages/reports/ReportDetailPage.tsx` | Detail + komentar & feedback |
-| `/reports/[id]/edit` | `src/pages/reports/ReportFormPage.tsx` | Ubah + hapus |
-| `/reports/export` | `src/pages/reports/ExportPage.tsx` | Panel filter & pilihan ekspor |
-| `/print/rekap-magang` | `src/pages/print/RekapMagangPage.tsx` | Dokumen cetak A4 PT Badak NGL |
-| _(tanpa rute)_ | `src/lib/export-client.ts` | Unduhan CSV / XLSX dibangun di peramban |
+| `/reports/feed` | `src/app/(app)/reports/feed/page.tsx` | Daftar kegiatan seluruh peserta (view-only untuk milik orang lain) |
+| `/reports` | `src/app/(app)/reports/page.tsx` | Laporan Saya + 4 KPI card |
+| `/reports/new` | `src/app/(app)/reports/new/page.tsx` | Form input laporan harian |
+| `/reports/[id]` | `src/app/(app)/reports/[id]/page.tsx` | Detail + komentar & feedback |
+| `/reports/[id]/edit` | `src/app/(app)/reports/[id]/edit/page.tsx` | Ubah + hapus |
+| `/reports/export` | `src/app/(app)/reports/export/page.tsx` | Panel filter & pilihan ekspor |
+| `/print/rekap-magang` | `src/app/print/rekap-magang/page.tsx` | Dokumen cetak A4 PT Badak NGL |
+| `/api/export/xlsx` · `/api/export/csv` | `src/app/api/export/*/route.ts` | Unduhan data mentah |
 
-Logika: `src/lib/report-stats.ts` (agregasi), `src/lib/report-query.ts` (filter + query bersama), `src/lib/export.ts` (baris ekspor), `src/pages/print/print.css` (stylesheet A4).
+Logika: `src/lib/report-stats.ts` (agregasi), `src/lib/report-query.ts` (filter + query bersama), `src/lib/export.ts` (baris ekspor), `src/app/print/print.css` (stylesheet A4).
 
 ---
 
@@ -179,7 +179,7 @@ Rincian lengkap: [UX-QA-AUDIT.md](UX-QA-AUDIT.md)
   tercetak gelap dan isi terpotong di kanan. Seluruh override `@media print`
   kini `!important`; **diverifikasi** PDF tema terang dan gelap identik
   byte-per-byte.
-- **Ekspor** dulu lewat route `/api/export/*` yang membalas halaman HTML login saat sesi habis; sekarang dikerjakan di peramban dan
+- **`/api/export/*`** dulu membalas halaman HTML login saat sesi habis; sekarang
   `401 JSON`.
 
 ### Yang berubah pada perilaku
@@ -196,17 +196,3 @@ Rincian lengkap: [UX-QA-AUDIT.md](UX-QA-AUDIT.md)
   dan dialog konfirmasi saat menghapus.
 - **Tampilan mobile**: tabel 6–7 kolom diganti kartu.
 - **Toolbar cetak** menyertakan satu baris instruksi menyimpan sebagai PDF.
-
----
-
-## Pembaruan v1.0
-
-- **Kop surat fleksibel**: identitas kop kedua dokumen cetak (baris kop, judul
-  dokumen, identitas kampus Formulir 2, kode SOP, lokasi ttd, logo) kini
-  setelan per-user di kartu "Kop Surat & Logo" halaman `/account` — lengkap
-  dengan live preview dan tombol reset. Tanpa setelan, output identik dengan
-  identitas bawaan PT Badak NGL / STITEK (diverifikasi terhadap baseline PDF).
-- Resolver tunggal `src/lib/letterhead.ts`; logo unggahan tersimpan berversi di
-  bucket `org-logos` (cache SW/CDN selalu ter-bypass); logo landscape didukung
-  lewat layout adaptif; export Excel kini ber-kop bergambar dan nama file
-  mengikuti judul dokumen.

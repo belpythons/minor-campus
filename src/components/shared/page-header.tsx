@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ export function PageHeader({
     <FadeIn className={cn("mb-5 space-y-3", className)}>
       {back && (
         <Button asChild variant="ghost" size="xs" className="-ml-2 text-muted-foreground">
-          <Link to={back.href}>
+          <Link href={back.href}>
             <ChevronLeft aria-hidden />
             {back.label}
           </Link>

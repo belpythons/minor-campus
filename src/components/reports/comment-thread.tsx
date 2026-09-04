@@ -1,5 +1,7 @@
+"use client";
+
 import * as React from "react";
-import { useRefresh } from "@/hooks/use-refresh";
+import { useRouter } from "next/navigation";
 import { MessageSquare, Send, Trash2 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -23,7 +25,7 @@ export function CommentThread({
   userId: string;
   comments: ReportComment[];
 }) {
-  const refresh = useRefresh();
+  const router = useRouter();
   const confirm = useConfirm();
   const [isi, setIsi] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -49,7 +51,7 @@ export function CommentThread({
 
     setIsi("");
     notifySuccess("Komentar terkirim");
-    refresh();
+    router.refresh();
   }
 
   async function hapus() {
@@ -68,7 +70,7 @@ export function CommentThread({
     notifySuccess("Komentar dihapus");
     confirm.close();
     setPendingDelete(null);
-    refresh();
+    router.refresh();
   }
 
   return (
@@ -100,7 +102,7 @@ export function CommentThread({
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="flex gap-2.5 rounded-md border border-foreground bg-muted/40 p-3"
+                      className="flex gap-2.5 rounded-md border border-border bg-muted/40 p-3"
                     >
                       <Avatar className="size-7 shrink-0">
                         <AvatarFallback className="text-[11px]">

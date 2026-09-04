@@ -1,7 +1,8 @@
+"use client";
+
 import * as React from "react";
-import { Link } from "react-router-dom";
-import { useNavigate } from "react-router-dom";
-import { useRefresh } from "@/hooks/use-refresh";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Clock, Moon, Save, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +44,7 @@ interface FormState {
 }
 
 export function ReportForm({ userId, initial }: { userId: string; initial?: InternshipReport }) {
-  const navigate = useNavigate();
-  const refresh = useRefresh();
+  const router = useRouter();
   const isEdit = Boolean(initial);
   const confirm = useConfirm();
 
@@ -157,8 +157,8 @@ export function ReportForm({ userId, initial }: { userId: string; initial?: Inte
           : payload.judul,
       });
 
-      navigate("/reports");
-      refresh();
+      router.push("/reports");
+      router.refresh();
     } catch (err) {
       notifyError("Gagal menyimpan laporan", { description: describeError(err) });
       setBusy(false);
@@ -183,8 +183,8 @@ export function ReportForm({ userId, initial }: { userId: string; initial?: Inte
 
     notifySuccess("Laporan dihapus", { description: initial.judul });
     confirm.close();
-    navigate("/reports");
-    refresh();
+    router.push("/reports");
+    router.refresh();
   }
 
   return (
@@ -377,7 +377,7 @@ export function ReportForm({ userId, initial }: { userId: string; initial?: Inte
               {busy ? "Menyimpan…" : "Simpan Laporan"}
             </Button>
             <Button asChild variant="outline" disabled={busy}>
-              <Link to="/reports">Batal</Link>
+              <Link href="/reports">Batal</Link>
             </Button>
           </div>
 

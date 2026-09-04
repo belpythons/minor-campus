@@ -1,6 +1,8 @@
+"use client";
+
 import * as React from "react";
-import { Link } from "react-router-dom";
-import { useRefresh } from "@/hooks/use-refresh";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   BookOpen,
   Check,
@@ -23,28 +25,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  MotionTableRow,
-  Table,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { Pagination, paginate } from "@/components/shared/pagination";
 import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { useDebounced, useUrlFilters } from "@/hooks/use-url-filters";
-import { renumberLogbook } from "@/lib/logbook-actions";
+import { createClient } from "@/lib/supabase/client";
 import { formatHariTanggal } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
-import type { LogbookEntry, Project, Supervisor } from "@/lib/types";
-import { Stagger, StaggerItem, staggerChild } from "@/components/motion/motion-primitives";
+import type { LogbookEntry, Supervisor } from "@/lib/types";
+import { Stagger, StaggerItem } from "@/components/motion/motion-primitives";
 
 const ALL = "semua";
 const PARAF_ALL = "semua";
-const DEFAULTS = { q: "", pembimbing: ALL, paraf: PARAF_ALL, project: ALL, page: "1" } as const;
+const DEFAULTS = { q: "", pembimbing: ALL, paraf: PARAF_ALL, page: "1" } as const;
 
 export function ParafBadge({ ok }: { ok: boolean }) {
   return ok ? (
@@ -63,17 +58,11 @@ export function ParafBadge({ ok }: { ok: boolean }) {
 export function LogbookTable({
   entries,
   supervisors,
-  projects = [],
 }: {
   entries: LogbookEntry[];
   supervisors: Supervisor[];
-  projects?: Project[];
 }) {
-  const projectById = React.useMemo(
-    () => new Map(projects.map((p) => [p.id, p])),
-    [projects],
-  );
-  const refresh = useRefresh();
+  const router = useRouter();
   const { values, write, reset, activeCount, page, setPage } = useUrlFilters(DEFAULTS);
   const renumber = useConfirm();
 
@@ -102,37 +91,57 @@ export function LogbookTable({
       if (values.pembimbing !== ALL && e.supervisor_id !== values.pembimbing) return false;
       if (values.paraf === "sudah" && !e.paraf_status) return false;
       if (values.paraf === "belum" && e.paraf_status) return false;
-      if (values.project !== ALL && e.project_id !== values.project) return false;
       if (!needle) return true;
       return [e.aktivitas_pekerjaan, e.hasil_tindak_lanjut, e.pembimbing_nama]
         .join(" ")
         .toLowerCase()
         .includes(needle);
     });
-  }, [entries, values.q, values.pembimbing, values.paraf, values.project]);
+  }, [entries, values.q, values.pembimbing, values.paraf]);
 
   const { rows, safePage, pageCount } = paginate(filtered, page);
 
-  /**
-   * Rewrites nomor_urut to 1..n following the date order — one atomic RPC
-   * (P0-5); an interruption can no longer strand rows on temporary numbers.
-   */
+  /** Rewrites nomor_urut to 1..n following the current date order. */
   async function applyRenumber() {
     renumber.setLoading(true);
 
-    const result = await renumberLogbook();
+    const ordered = [...entries].sort(
+      (a, b) => a.tanggal.localeCompare(b.tanggal) || a.nomor_urut - b.nomor_urut,
+    );
 
-    if ("error" in result) {
-      notifyError("Gagal merapikan penomoran", { description: describeError(result.error) });
+    const supabase = createClient();
+
+    try {
+      /*
+        Two passes with a large temporary offset: nomor_urut has no unique
+        constraint today, but writing straight to the target numbers would
+        still momentarily duplicate values mid-update.
+      */
+      for (const [i, e] of ordered.entries()) {
+        const { error } = await supabase
+          .from("logbook_entries")
+          .update({ nomor_urut: 10000 + i })
+          .eq("id", e.id);
+        if (error) throw error;
+      }
+
+      for (const [i, e] of ordered.entries()) {
+        const { error } = await supabase
+          .from("logbook_entries")
+          .update({ nomor_urut: i + 1 })
+          .eq("id", e.id);
+        if (error) throw error;
+      }
+
+      notifySuccess("Penomoran dirapikan", {
+        description: `${ordered.length} entri diberi nomor 1–${ordered.length} urut tanggal.`,
+      });
       renumber.close();
-      return;
+      router.refresh();
+    } catch (err) {
+      notifyError("Gagal merapikan penomoran", { description: describeError(err) });
+      renumber.close();
     }
-
-    notifySuccess("Penomoran dirapikan", {
-      description: `${entries.length} entri diberi nomor 1–${entries.length} urut tanggal.`,
-    });
-    renumber.close();
-    refresh();
   }
 
   if (entries.length === 0) {
@@ -144,7 +153,7 @@ export function LogbookTable({
           description="Catat aktivitas kerja praktek dan sesi konsultasi Anda untuk mengisi Formulir 2."
           action={
             <Button asChild variant="gradient">
-              <Link to="/logbook/new">
+              <Link href="/logbook/new">
                 <Plus aria-hidden />
                 Tambah Entri
               </Link>
@@ -211,25 +220,6 @@ export function LogbookTable({
           </Select>
         </div>
 
-        {projects.length > 0 && (
-          <div className="space-y-1.5">
-            <Label htmlFor="f-project">Proyek</Label>
-            <Select value={values.project} onValueChange={(v) => write({ project: v })}>
-              <SelectTrigger id="f-project">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={ALL}>Semua proyek</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.judul}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
-
         <div className="space-y-1.5">
           <Label htmlFor="f-paraf">Status paraf</Label>
           <Select value={values.paraf} onValueChange={(v) => write({ paraf: v })}>
@@ -260,7 +250,7 @@ export function LogbookTable({
         ) : (
           <>
             {/* --- Mobile cards --- */}
-            <Stagger className="divide-y-2 divide-foreground lg:hidden" as="ul">
+            <Stagger className="divide-y divide-border lg:hidden" as="ul">
               {rows.map((e) => (
                 <StaggerItem key={e.id} as="li" className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -272,11 +262,6 @@ export function LogbookTable({
                       <p className="mt-1 whitespace-pre-line text-[13px] leading-relaxed text-foreground">
                         {e.aktivitas_pekerjaan}
                       </p>
-                      {e.project_id && projectById.get(e.project_id) && (
-                        <Badge variant="outline" className="mt-1.5">
-                          {projectById.get(e.project_id)!.judul}
-                        </Badge>
-                      )}
                     </div>
                     <ParafBadge ok={e.paraf_status} />
                   </div>
@@ -294,17 +279,12 @@ export function LogbookTable({
                     )}
                   </div>
 
-                  <div className="mt-3 flex gap-2">
-                    <Button asChild variant="outline" size="sm" className="flex-1">
-                      <Link to={`/logbook/${e.id}`}>Detail</Link>
-                    </Button>
-                    <Button asChild variant="outline" size="sm" className="flex-1">
-                      <Link to={`/logbook/${e.id}/edit`}>
-                        <Pencil aria-hidden />
-                        Ubah Entri
-                      </Link>
-                    </Button>
-                  </div>
+                  <Button asChild variant="outline" size="sm" className="mt-3 w-full">
+                    <Link href={`/logbook/${e.id}/edit`}>
+                      <Pencil aria-hidden />
+                      Ubah Entri
+                    </Link>
+                  </Button>
                 </StaggerItem>
               ))}
             </Stagger>
@@ -324,9 +304,9 @@ export function LogbookTable({
                     </TableHead>
                   </TableRow>
                 </TableHeader>
-                <Stagger as="tbody">
+                <TableBody>
                   {rows.map((e) => (
-                    <MotionTableRow key={e.id} variants={staggerChild}>
+                    <TableRow key={e.id}>
                       <TableCell className="text-center text-muted-foreground tnum">
                         {e.nomor_urut}
                       </TableCell>
@@ -339,11 +319,6 @@ export function LogbookTable({
                         <p className="whitespace-pre-line leading-relaxed">
                           {e.aktivitas_pekerjaan}
                         </p>
-                        {e.project_id && projectById.get(e.project_id) && (
-                          <Badge variant="outline" className="mt-1.5">
-                            {projectById.get(e.project_id)!.judul}
-                          </Badge>
-                        )}
                         {e.hasil_tindak_lanjut && (
                           <p className="mt-1.5 text-[12px] leading-relaxed text-muted-foreground">
                             <span className="font-semibold">Tindak lanjut:</span>{" "}
@@ -366,21 +341,16 @@ export function LogbookTable({
                       </TableCell>
 
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1.5">
-                          <Button asChild variant="outline" size="xs">
-                            <Link to={`/logbook/${e.id}`}>Detail</Link>
-                          </Button>
-                          <Button asChild variant="outline" size="xs">
-                            <Link to={`/logbook/${e.id}/edit`}>
-                              <Pencil aria-hidden />
-                              Ubah
-                            </Link>
-                          </Button>
-                        </div>
+                        <Button asChild variant="outline" size="xs">
+                          <Link href={`/logbook/${e.id}/edit`}>
+                            <Pencil aria-hidden />
+                            Ubah
+                          </Link>
+                        </Button>
                       </TableCell>
-                    </MotionTableRow>
+                    </TableRow>
                   ))}
-                </Stagger>
+                </TableBody>
               </Table>
             </div>
 

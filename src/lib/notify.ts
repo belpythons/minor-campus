@@ -22,8 +22,29 @@ export function notifyError(message: string, options: NotifyOptions = {}) {
   return toast.error(message, { duration: 7000, ...options });
 }
 
+export function notifyInfo(message: string, options: NotifyOptions = {}) {
+  return toast(message, options);
+}
+
 export function notifyWarning(message: string, options: NotifyOptions = {}) {
   return toast.warning(message, { duration: 6000, ...options });
+}
+
+/** Shows a pending toast that resolves into success or failure. */
+export function notifyPromise<T>(
+  promise: Promise<T>,
+  messages: { loading: string; success: string; error?: string },
+) {
+  return toast.promise(promise, {
+    loading: messages.loading,
+    success: messages.success,
+    error: (err: unknown) =>
+      messages.error ?? (err instanceof Error ? err.message : "Terjadi kesalahan."),
+  });
+}
+
+export function dismissNotify(id?: string | number) {
+  toast.dismiss(id);
 }
 
 /**

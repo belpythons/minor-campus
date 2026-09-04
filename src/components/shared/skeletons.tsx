@@ -46,10 +46,10 @@ export function FilterBarSkeleton({ fields = 3 }: { fields?: number }) {
 export function TableSkeleton({ rows = 6 }: { rows?: number }) {
   return (
     <Card>
-      <div className="border-b border-foreground px-4 py-3">
+      <div className="border-b border-border px-4 py-3">
         <Skeleton className="h-3 w-32" />
       </div>
-      <div className="divide-y-2 divide-foreground">
+      <div className="divide-y divide-border">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-start gap-4 px-4 py-4">
             <Skeleton className="h-4 w-20 shrink-0" />
@@ -57,7 +57,7 @@ export function TableSkeleton({ rows = 6 }: { rows?: number }) {
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="h-3 w-full max-w-sm" />
             </div>
-            <Skeleton className="hidden h-5 w-24 shrink-0 sm:block" />
+            <Skeleton className="hidden h-5 w-24 shrink-0 rounded-full sm:block" />
           </div>
         ))}
       </div>

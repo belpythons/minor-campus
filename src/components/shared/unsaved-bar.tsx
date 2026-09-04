@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { RotateCcw, Save, TriangleAlert } from "lucide-react";
 

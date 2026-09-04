@@ -15,21 +15,17 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "jsx": "react-jsx",
+    "jsx": "preserve",
     "incremental": true,
-    "types": ["vite/client"],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
     "paths": {
-      "@/*": ["./src/*"],
-      // Modul murni yang dibaca dua bundler: Vite (alias ini) dan Deno (impor
-      // relatif dari dalam supabase/functions). Supabase CLI hanya mengemas
-      // berkas di bawah supabase/functions, jadi di sanalah tempatnya.
-      "@shared/*": ["./supabase/functions/_shared/*"]
+      "@/*": ["./src/*"]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx", "vite.config.ts"],
-    // Entry point Edge Function berjalan di Deno (impor jsr:/npm: dan global
-  // Deno), jadi tsc tidak bisa dan tidak perlu memeriksanya — `supabase
-  // functions deploy` yang melakukannya. _shared/ TIDAK dikecualikan: berkas di
-  // sana ikut masuk bundel Vite lewat alias @shared/*.
-  "exclude": ["node_modules", "dist", "supabase/functions/*/index.ts"]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }

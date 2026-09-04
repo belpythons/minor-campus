@@ -1,5 +1,7 @@
+"use client";
+
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import * as React from "react";
-import { useSearchParams } from "react-router-dom";
 
 /** Filter values are always plain strings, never the literal type of the default. */
 type FilterValues<T> = { [K in keyof T]: string };
@@ -12,13 +14,13 @@ type FilterValues<T> = { [K in keyof T]: string };
  * values in the query string the view becomes reproducible, bookmarkable and
  * shareable — and Back/Forward step through filter history as users expect.
  *
- * `replace: true` dipakai supaya mengetik di kotak pencarian tidak menumpuk
- * satu entri riwayat per ketukan. `preventScrollReset` adalah padanan langsung
- * `scroll: false` milik Next — tanpanya React Router melompatkan halaman ke
- * atas setiap kali query string berubah.
+ * `replace` + `scroll: false` is used so typing in a search box does not push
+ * a history entry per keystroke or jump the page to the top.
  */
 export function useUrlFilters<T extends Record<string, string>>(defaults: T) {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   /*
     Call sites pass an object literal, which is a fresh reference on every
@@ -50,14 +52,15 @@ export function useUrlFilters<T extends Record<string, string>>(defaults: T) {
       // Any filter change invalidates the current page.
       if (!("page" in patch)) next.delete("page");
 
-      setSearchParams(next, { replace: true, preventScrollReset: true });
+      const qs = next.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
-    [stableDefaults, setSearchParams, searchParams],
+    [stableDefaults, pathname, router, searchParams],
   );
 
   const reset = React.useCallback(() => {
-    setSearchParams(new URLSearchParams(), { replace: true, preventScrollReset: true });
-  }, [setSearchParams]);
+    router.replace(pathname, { scroll: false });
+  }, [pathname, router]);
 
   /**
    * How many filters the user has actually changed. `page` is excluded — being
