@@ -1,6 +1,6 @@
 # Student Hub & Internship Logbook
 
-Implementasi dari spesifikasi di `D:\KOD ING\QOL\` — tiga modul dalam satu aplikasi Next.js 14:
+Implementasi dari spesifikasi di `D:\KOD ING\QOL\` — tiga modul dalam satu SPA React:
 
 1. **Satuan Kegiatan Mahasiswa (SKM) & LinkedIn Assistant** → [docs/FITUR-MODUL-SKM.md](docs/FITUR-MODUL-SKM.md)
 2. **Task Report Magang / PKL (PT Badak NGL)** → [docs/FITUR-MODUL-TASK-REPORT.md](docs/FITUR-MODUL-TASK-REPORT.md)
@@ -15,20 +15,33 @@ Audit UX/QA beserta seluruh bug yang ditemukan dan diperbaiki:
 
 | Layer | Teknologi |
 |---|---|
-| Framework | Next.js 14 (App Router) · React 18 · TypeScript |
+| Build | Vite 7 · React 18 · TypeScript |
+| Routing | React Router 7 (`createBrowserRouter`) |
+| Data | TanStack Query di atas `@supabase/supabase-js` |
 | UI | shadcn/ui (Radix primitives) + Tailwind CSS · Poppins |
-| Ikon | Lucide — set ikon resmi shadcn |
+| Design system | **Claymorphism** — sudut membulat besar, permukaan lembut, bayangan ganda + sorot inset |
+| Ikon | Lucide untuk seluruh ikon inline · [3dicons](https://3dicons.co) (CC0) sebagai aksen 3D di permukaan besar |
 | Animasi | Framer Motion — seluruhnya menghormati `prefers-reduced-motion` |
-| Tema | `next-themes` — Terang / Gelap / Ikuti sistem |
+| Tema | `next-themes` — Terang (bawaan) / Gelap |
 | Notifikasi | Sonner (toast) |
 | Database / Auth / Storage | Supabase (PostgreSQL 15, JWT Auth, Storage Buckets) |
-| Ekspor Excel | ExcelJS |
-| Cetak PDF | HTML + `@media print` A4 |
-| PWA | Manifest + service worker tulis-tangan |
+| Backend | **Tidak ada.** Dua Supabase Edge Function untuk yang butuh rahasia |
+| Ekspor Excel | ExcelJS, dijalankan di peramban |
+| Cetak PDF | HTML + `@media print` A4, ditampilkan dalam modal pratinjau |
+| PWA | `vite-plugin-pwa` (Workbox) |
+
+Tidak ada server milik sendiri. Seluruh data mengalir dari peramban langsung ke
+Supabase lewat RLS; hanya dua hal yang tidak boleh dipercayakan ke klien yang
+berjalan sebagai Edge Function:
+
+| Edge Function | Kenapa harus di server |
+|---|---|
+| `logo-upload` | Butuh service role: akun penggunanya belum ada saat logo dipilih |
+| `linkedin-ai` | `GEMINI_API_KEY` tidak boleh masuk bundel peramban |
 
 ### Sistem Token
 
-`src/app/globals.css` memuat **dua lapis** token, dan pembagian ini penting:
+`src/globals.css` memuat **dua lapis** token, dan pembagian ini penting:
 
 1. **Token semantik shadcn (HSL)** — `--background`, `--primary`,
    `--muted-foreground`, dan seterusnya. Punya nilai terang dan gelap. Semua
@@ -36,7 +49,7 @@ Audit UX/QA beserta seluruh bug yang ditemukan dan diperbaiki:
 2. **Token brand (hex)** — `--navy #001e41` · `--blue #0057a8` ·
    `--red #e3001b` · `--amber #f9a330`, diambil dari sistem referensi
    `http://10.10.1.187:8097`. **Dipatok ke nilai terang di kedua tema**, karena
-   `src/app/print/print.css` bergantung padanya dan hasil PDF tidak boleh
+   `src/pages/print/print.css` bergantung padanya dan hasil PDF tidak boleh
    berubah mengikuti tema tampilan.
 
 Kontras teks memenuhi WCAG AA: `--muted-foreground` 5.9:1 pada tema terang,
@@ -58,15 +71,21 @@ Aplikasi berjalan di `http://localhost:3000`.
 `.env.local` (tidak masuk git) harus berisi:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key>
+VITE_SITE_URL=http://localhost:3000
 ```
 
-Dua variabel berikut **opsional** dan hanya dipakai skrip pemeliharaan di `scripts/`, bukan oleh aplikasi:
+> Awalan `VITE_` menggantikan `NEXT_PUBLIC_`, dan artinya sama: apa pun dengan
+> awalan itu ikut masuk ke bundel peramban. Rahasia tidak boleh memakainya.
+
+Variabel berikut **tidak pernah** menyentuh peramban — hanya skrip pemeliharaan di `scripts/` dan Edge Function:
 
 ```env
 SUPABASE_SERVICE_ROLE_KEY=<service_role key>
 SUPABASE_DB_URL=postgresql://postgres.<ref>:<password>@<pooler-host>:5432/postgres
+SUPABASE_ACCESS_TOKEN=<personal access token>   # npm run email:apply
+GEMINI_API_KEY=<gemini key>                     # Edge Function linkedin-ai
 ```
 
 > Host `db.<ref>.supabase.co` pada halaman *Direct connection* Supabase kini hanya menyediakan alamat IPv6. Bila jaringan Anda IPv4-only, pakai **Session pooler** (`aws-0-<region>.pooler.supabase.com:5432`, user `postgres.<ref>`) — itulah nilai yang tersimpan di `.env.local`.
@@ -94,6 +113,28 @@ Empat tabel inti mengikuti `QOL/README.md` apa adanya. Kolom dan tabel tambahan 
 
 Pada dashboard Supabase → **Authentication → Providers → Email**: matikan *Confirm email* bila ingin pendaftaran langsung bisa masuk tanpa verifikasi email. Bila dibiarkan menyala, halaman `/register` menampilkan pesan untuk mengecek email lebih dahulu.
 
+### Persona Kampus (dok 05)
+
+Halaman `/register` meminta logo kampus — **PNG berlatar transparan**, divalidasi
+Edge Function `logo-upload` (magic byte, kanal alpha, bingkai tepi ≥95%
+transparan). Warna dominan logo diekstrak jadi swatch; pengguna memilih satu atau
+dua, dan warna itu mewarnai seluruh UI, dokumen cetak, serta workbook XLSX.
+Pengguna tanpa logo tetap mendapat biru PT Badak NGL, byte-identik seperti
+sebelumnya.
+
+Jalur yang sama berlaku setelah pendaftaran: mengganti logo di **Profil &
+Pengesahan** menurunkan ulang warna primer dan sekunder dari logo baru
+(`src/lib/logo-canvas.ts` → `dominantColors()` → `makePersona()`), lengkap dengan penjepitan kontras,
+dan hasilnya tetap bisa digeser manual sebelum disimpan.
+
+Agar email verifikasi ikut berlogo kampus, template harus dipasang **manual**
+di dashboard Supabase → **Authentication → Email Templates → Confirm signup**.
+HTML lengkap beserta batasannya ada di
+[`docs/perbaikan/05PERSONAKAMPUSLOGOWARNA.md`](docs/perbaikan/05PERSONAKAMPUSLOGOWARNA.md)
+§7. Ringkasnya: isi email bisa per-kampus lewat `{{ .Data.logo_url }}`, tetapi
+**nama dan alamat pengirim tetap global per-project** kecuali Anda memasang
+Custom SMTP sendiri.
+
 ---
 
 ## Skrip Pemeliharaan
@@ -101,21 +142,23 @@ Pada dashboard Supabase → **Authentication → Providers → Email**: matikan 
 | Skrip | Fungsi |
 |---|---|
 | `node scripts/apply-schema.mjs` | Menjalankan `supabase/schema.sql` ke database |
-| `node scripts/seed-test-user.mjs` | Membuat akun uji `belva.test@stitek.local` / `Test1234!` (sudah terkonfirmasi) |
-| `node scripts/seed-demo-data.mjs` | Mengisi 6 laporan, 2 pembimbing, 4 entri log book untuk akun uji |
-| `node scripts/generate-pwa-icons.mjs` | Membangkitkan seluruh ikon PWA dari `public/logo.png` |
+| `node scripts/seed-demo-data.mjs` | Reset + seed demo: menghapus akun dummy, lalu mengisi 15 kegiatan magang nyata (3–21 Agustus 2026) + 15 entri log book untuk akun demo `belvapranamasriwibowo@gmail.com`. Idempoten. |
+| `node scripts/generate-pwa-icons.mjs` | Membangkitkan seluruh ikon PWA dari `public/icon.png` |
 | `node scripts/ingest-branding-kb.mjs` | Meng-embed korpus `docs/branding-kb/*.md` ke tabel `branding_chunks` (butuh `GEMINI_API_KEY`) |
 | `node scripts/_qa.mjs <outDir>` | Harness QA: login sungguhan, tangkapan layar, pemeriksaan perilaku |
 | `node scripts/_pdf.mjs <outDir>` | Mencetak dokumen resmi (formulir2, rekap, briefing) ke PDF pada tema terang dan gelap |
 
 Skrip Supabase memakai `SUPABASE_SERVICE_ROLE_KEY` / `SUPABASE_DB_URL` dan
-**tidak** pernah dijalankan oleh aplikasi. Hapus akun uji lewat dashboard
-Supabase sebelum dipakai sungguhan.
+**tidak** pernah dijalankan oleh aplikasi. `seed-demo-data.mjs` hanya
+menghapus akun yang tercantum eksplisit pada konstanta `DUMMY_EMAILS`, jadi
+akun sungguhan yang mendaftar belakangan tidak akan pernah tersentuh.
+Sumber datanya adalah sheet *Detail Kegiatan* pada berkas laporan XLSX —
+`foto_url` dibiarkan kosong karena tangkapan layar aslinya tidak ikut di repo.
 
 Dua skrip berawalan `_` butuh server `npm run dev` yang sedang berjalan.
 Lokasi Chrome dicari otomatis lintas-OS (Windows/macOS/Linux) dan dapat
-di-override dengan env `CHROME_PATH`; kredensial uji dengan `QA_EMAIL` /
-`QA_PASSWORD`.
+di-override dengan env `CHROME_PATH`. Kredensial `QA_EMAIL` / `QA_PASSWORD`
+**wajib** diset — tidak ada lagi akun uji bawaan.
 
 ---
 
@@ -123,20 +166,19 @@ di-override dengan env `CHROME_PATH`; kredensial uji dengan `QA_EMAIL` /
 
 ```
 /login · /register                     autentikasi
+/faq                                   FAQ & Tentang — publik, bisa dibaca tanpa akun
 /offline                               fallback service worker (statis, tanpa sesi)
 /dashboard                             ringkasan tiga modul
 /account                               profil + blok pengesahan (mengisi kedua kop surat)
 
 /skm · /skm/new · /skm/[id]/edit       portofolio SKM (persona kampus: ITS/UNAIR/Tel-U/BINUS/Kustom)
 /skm/linkedin                          generator teks LinkedIn & Markdown (+ AI RAG bila GEMINI_API_KEY diset)
-/api/skm/linkedin (+/status)           route AI server-only (Gemini; fallback template tanpa key)
 
 /reports/feed                          daftar kegiatan seluruh peserta
 /reports · /reports/new                laporan sendiri
 /reports/[id] · /reports/[id]/edit     detail + komentar · ubah
 /reports/export                        panel filter ekspor
 /print/rekap-magang                    dokumen cetak A4 (kop mengikuti setelan "Kop Surat & Logo")
-/api/export/xlsx · /api/export/csv     unduhan data (?dataset=logbook untuk log book)
 
 /logbook · /logbook/new                log book kerja praktek (+ select proyek opsional)
 /logbook/[id] · /logbook/[id]/edit     detail entri · ubah
@@ -148,10 +190,12 @@ di-override dengan env `CHROME_PATH`; kredensial uji dengan `QA_EMAIL` /
 /print/briefing?project=<id>           dokumen cetak A4 Briefing Pack SBAR
 ```
 
-Seluruh rute memerlukan sesi; `src/middleware.ts` menyegarkan cookie Supabase,
-mengalihkan peramban yang belum masuk ke `/login`, dan membalas **401 JSON**
-untuk `/api/*` agar pemanggil API tidak menerima halaman HTML. Manifest, service
-worker, dan folder ikon dikecualikan dari matcher.
+Rutenya didefinisikan di `src/routes.tsx` (React Router `createBrowserRouter`).
+Semua kecuali `/login`, `/register`, `/auth/confirm`, `/faq`, dan `/offline`
+dibungkus `<RequireAuth>` dari `src/lib/session.tsx`, yang mengalihkan pengunjung
+tanpa sesi ke `/login?next=…`. Tidak ada route API: ekspor dikerjakan di peramban
+(`src/lib/export-client.ts`) dan asisten LinkedIn memanggil Edge Function
+`linkedin-ai` langsung.
 
 ### Filter tersimpan di URL
 
@@ -175,30 +219,35 @@ app/
 ├─ scripts/                 skrip pemeliharaan & QA (bukan bagian aplikasi)
 ├─ supabase/schema.sql      skema, RLS, bucket
 ├─ public/
-│  ├─ logo.png              identitas & kop kedua dokumen cetak
-│  ├─ manifest.webmanifest  PWA manifest + shortcut
-│  ├─ sw.js                 service worker
-│  └─ icons/                ikon PWA hasil generate
+│  ├─ logo.png              lockup penuh USTB — hanya kartu login/daftar
+│  ├─ icon.png              lambang saja — sidebar, 404, offline, kop cetak, sumber ikon PWA
+│  ├─ loading.mp4           animasi layar loading (FullPageSpinner)
+│  ├─ icons/                ikon PWA hasil generate
+│  └─ icons3d/              ikon 3D dekoratif (3dicons, CC0 — lihat LICENSE.md)
+├─ index.html               entri Vite; manifest & service worker dibangkitkan plugin
+├─ vite.config.ts           Vite + vite-plugin-pwa (manifest, workbox)
 ├─ components.json          konfigurasi shadcn/ui
 └─ src/
-   ├─ middleware.ts
-   ├─ hooks/                use-url-filters · use-unsaved-changes
-   ├─ app/
-   │  ├─ (app)/             halaman ber-sidebar (+ loading.tsx, error.tsx)
-   │  ├─ print/             dokumen cetak + print.css
-   │  ├─ offline/           fallback offline
-   │  ├─ api/export/
-   │  └─ login/ · register/ · auth/
+   ├─ main.tsx              root render + provider + registerSW
+   ├─ routes.tsx            seluruh definisi rute
+   ├─ globals.css           token design system (claymorphism)
+   ├─ hooks/                use-url-filters · use-unsaved-changes · use-export · use-refresh
+   ├─ pages/
+   │  ├─ AppLayout.tsx      shell terautentikasi
+   │  ├─ login/ register/ auth/ faq/
+   │  ├─ dashboard/ account/ skm/ reports/ logbook/
+   │  └─ print/             dokumen cetak + print.css
    ├─ components/
-   │  ├─ ui/                20 primitive shadcn/ui
+   │  ├─ ui/                primitive shadcn/ui + password-input
    │  ├─ shared/            field · confirm-dialog · filter-bar · pagination ·
    │  │                     file-picker · stat-card · skeletons · empty-state ·
-   │  │                     unsaved-bar · page-header · error-view
+   │  │                     unsaved-bar · page-header · error-view · icon-3d
    │  ├─ motion/            primitive Framer Motion
-   │  ├─ pwa/               service-worker-registrar · install-prompt
+   │  ├─ pwa/               install-prompt (dialog tawaran pasang)
    │  └─ layout/ skm/ reports/ logbook/ print/
    └─ lib/
-      ├─ supabase/          client · server · middleware · config
+      ├─ supabase/          client · config
+      ├─ session.tsx        SessionProvider · RequireAuth · AuthOnly · signOut
       ├─ types.ts           cerminan schema.sql
       ├─ constants.ts       kategori resmi, batas ukuran, teks institusi
       ├─ format.ts          tanggal/jam Bahasa Indonesia
@@ -208,7 +257,12 @@ app/
       ├─ report-query.ts    filter + query bersama cetak/ekspor
       ├─ logbook-query.ts
       ├─ export.ts          baris & escaping CSV
+      ├─ export-client.ts   unduhan CSV/XLSX di peramban
       ├─ upload.ts          Storage helper + progress unggahan
+      ├─ persona.ts         warna kampus → token CSS (+ ambang kontras)
+      ├─ logo-analyze.ts    warna dominan + tepi transparan (murni, teruji)
+      ├─ logo-canvas.ts     pembacaan kanvas → logo-analyze
+      ├─ pwa-install.ts     penangkap beforeinstallprompt
       ├─ navigation.ts      sumber kebenaran navigasi
       ├─ notify.ts          toast + penerjemah pesan error
       └─ utils.ts           cn()
@@ -216,15 +270,52 @@ app/
 
 ---
 
+## Template Email Verifikasi
+
+Tiga template (`supabase/emails/`) dirakit dan dipasang oleh satu perintah:
+
+```bash
+npm run email:apply
+```
+
+Perintah itu juga menyetel **Site URL** dan **Redirect URLs** — bagian yang
+berlaku di semua paket Supabase, dan yang memperbaiki tautan verifikasi.
+
+> **Paket gratis:** Supabase menolak template kustom selama proyek masih memakai
+> pengirim email bawaan. Skripnya melewati bagian itu dengan pesan yang
+> menjelaskan langkahnya, dan tetap menyimpan konfigurasi URL. Pasang SMTP
+> sendiri (Resend / Brevo / Mailgun punya paket gratis) di
+> **Authentication → Emails → SMTP Settings**, lalu jalankan ulang. Pengirim
+> bawaan juga dibatasi ~2 email/jam, jadi SMTP sendiri memang tetap dibutuhkan
+> sebelum rilis.
+
+Tautannya memakai `{{ .TokenHash }}`, bukan `{{ .ConfirmationURL }}`: yang
+terakhir mengembalikan sesi lewat alur PKCE yang menyimpan *code verifier* di
+peramban tempat pendaftaran dilakukan, sehingga gagal bagi siapa pun yang
+mendaftar di laptop lalu membuka emailnya di ponsel.
+
+---
+
 ## Deploy ke Vercel
 
-1. Push repository ke GitHub.
-2. Vercel → **Import Repository**. Bila `app/` bukan akar repo, set **Root Directory** ke `app`.
-3. Tambahkan Environment Variables: `NEXT_PUBLIC_SUPABASE_URL` dan `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. **Deploy**.
-5. Di Supabase → **Authentication → URL Configuration**, tambahkan domain Vercel ke *Site URL* dan *Redirect URLs*.
+Aplikasi ini adalah SPA statis: Vercel cukup menyajikan `dist/`. `vercel.json`
+sudah memuat rewrite yang mengarahkan setiap path ke `index.html`, tanpanya
+memuat ulang di `/logbook/123` akan menghasilkan 404.
 
-Variabel `SUPABASE_SERVICE_ROLE_KEY` dan `SUPABASE_DB_URL` **tidak perlu** dipasang di Vercel — keduanya hanya dipakai skrip lokal.
+1. Push repository ke GitHub.
+2. Vercel → **Import Repository**. Framework preset: **Vite**. Output directory: `dist`.
+3. Tambahkan Environment Variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
+   dan `VITE_SITE_URL` (domain produksi, tanpa garis miring di akhir).
+4. **Deploy**.
+5. Jalankan `npm run email:apply` sekali dengan `VITE_SITE_URL` sudah menunjuk
+   domain produksi — perintah itu yang menyetel *Site URL* dan *Redirect URLs*
+   di Supabase. Tanpa langkah ini, tautan verifikasi email ditolak.
+6. Deploy Edge Function: `npm run fn:deploy`, lalu pasang rahasianya:
+   `supabase secrets set GEMINI_API_KEY=... SUPABASE_SERVICE_ROLE_KEY=...`
+
+`SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL`, `SUPABASE_ACCESS_TOKEN`, dan
+`GEMINI_API_KEY` **tidak boleh** dipasang di Vercel — semuanya dipakai skrip
+lokal atau Edge Function, dan tidak ada satu pun yang boleh sampai ke peramban.
 
 ---
 
@@ -242,19 +333,30 @@ gelap, dan hasilnya identik byte-per-byte.
 
 ## PWA
 
-Aplikasi bisa dipasang ke layar utama. `public/sw.js` ditulis tangan, bukan
-dibangkitkan, karena ada satu aturan keras: **data per-pengguna tidak pernah
-disajikan dari cache** — menyajikan log book peserta lain dari cache basi lebih
-buruk daripada sekadar offline.
+Aplikasi bisa dipasang ke layar utama. Manifest dan service worker dibangkitkan
+`vite-plugin-pwa` (`vite.config.ts`, mode `generateSW`), bukan ditulis tangan:
+Vite memberi hash pada setiap aset, jadi daftar precache tulisan tangan pasti
+basi sejak build pertama.
 
 | Jenis permintaan | Strategi |
 |---|---|
-| Navigasi halaman | Network-first, jatuh ke `/offline` |
-| `/_next/static/*` | Cache-first (nama berkas ber-hash) |
-| Ikon & manifest | Stale-while-revalidate |
-| Supabase, `/api/*`, `/auth/*`, `/print/*`, payload RSC | Tidak disentuh sama sekali |
+| Navigasi halaman | Precache `index.html`, jatuh ke `/offline` saat gagal |
+| Aset ber-hash (`/assets/*`) | Precache Workbox |
+| Ikon PWA, ikon 3D, manifest | Precache Workbox |
+| Google Fonts | Cache-first, maks 20 entri |
+| Supabase, `/print/*` | Tidak disentuh sama sekali |
 
-Perbarui ikon setelah mengganti `public/logo.png`:
+Aturan kerasnya tetap: **data per-pengguna tidak pernah disajikan dari cache** —
+menyajikan log book peserta lain dari cache basi lebih buruk daripada sekadar
+offline. `/print/*` juga dikecualikan dari fallback navigasi karena halamannya
+dirender ke iframe dan harus selalu segar.
+
+Tawaran pasang muncul sebagai dialog setelah ±6 detik, di aplikasi maupun di
+halaman login/daftar; penolakannya diingat di `localStorage`. Event
+`beforeinstallprompt` ditangkap `src/lib/pwa-install.ts` saat modul di-import,
+bukan saat komponen mount — Chrome menembakkannya sekali dan sangat awal.
+
+Perbarui ikon setelah mengganti `public/icon.png`:
 
 ```bash
 node scripts/generate-pwa-icons.mjs

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ORG } from "./constants";
+import { DEFAULT_PERSONA, deriveAccent, normalizeHex, type Persona } from "./persona";
 
 /** Row shape of letterhead_settings (supabase/schema.sql). */
 export interface LetterheadSettings {
@@ -13,6 +14,8 @@ export interface LetterheadSettings {
   lokasi_ttd: string;
   logo_url: string | null;
   logo_versi: number;
+  warna_primer: string | null;
+  warna_aksen: string | null;
   updated_at: string | null;
 }
 
@@ -26,7 +29,7 @@ export interface Letterhead {
   formulirTitle: string;
   kodeSop: string;
   lokasiTtd: string;
-  /** "/logo.png" bawaan atau URL publik bucket org-logos. */
+  /** "/icon.png" (lambang) bawaan atau URL publik bucket org-logos. */
   logoSrc: string;
   customLogo: boolean;
   /** Nama organisasi untuk teks UI ("dokumen resmi X", fallback tempat KP). */
@@ -35,6 +38,8 @@ export interface Letterhead {
   appSubtitle: string;
   exportFilePrefix: string;
   footerText: string;
+  /** Warna merek; tak pernah null — bawaannya biru Badak (dok 05). */
+  persona: Persona;
 }
 
 const DEFAULT_JUDUL = "LAPORAN KEGIATAN MAGANG";
@@ -59,13 +64,31 @@ export const DEFAULT_LETTERHEAD: Letterhead = Object.freeze({
   formulirTitle: ORG.formulirTitle,
   kodeSop: ORG.kodeSop,
   lokasiTtd: ORG.lokasi,
-  logoSrc: "/logo.png",
+  logoSrc: "/icon.png",
   customLogo: false,
   orgNama: ORG.perusahaanMixed,
-  appSubtitle: "STITEK · PT Badak NGL",
+  appSubtitle: "USTB · PT Badak NGL",
   exportFilePrefix: DEFAULT_PREFIX,
   footerText: `Dicetak dari aplikasi Task Report Magang · ${ORG.perusahaanMixed}`,
+  persona: DEFAULT_PERSONA,
 });
+
+/**
+ * Dua kolom warna → persona lengkap. Satu warna saja cukup: pasangannya
+ * diturunkan, jadi pengguna yang memilih satu swatch tetap dapat kop gelap
+ * dan tombol terang yang serasi.
+ */
+function resolvePersona(
+  primer: string | null | undefined,
+  aksen: string | null | undefined,
+): Persona {
+  const p = normalizeHex(primer);
+  const a = normalizeHex(aksen);
+  if (!p && !a) return DEFAULT_PERSONA;
+  if (p && a) return { primary: p, accent: a };
+  const anchor = p ?? DEFAULT_PERSONA.primary;
+  return { primary: anchor, accent: a ?? deriveAccent(anchor) };
+}
 
 /**
  * Satu pintu identitas kop (dok 03 §2.3): tanpa baris settings hasilnya
@@ -93,7 +116,7 @@ export function resolveLetterhead(
     formulirTitle: settings.formulir_title?.trim() || ORG.formulirTitle,
     kodeSop: settings.kode_sop?.trim() || ORG.kodeSop,
     lokasiTtd: settings.lokasi_ttd?.trim() || ORG.lokasi,
-    logoSrc: settings.logo_url || "/logo.png",
+    logoSrc: settings.logo_url || "/icon.png",
     customLogo: Boolean(settings.logo_url),
     orgNama: kopBaris[0],
     appSubtitle: `${settings.kampus_upper?.trim() || ORG.kampusUpper} · ${kopBaris[0]}`,
@@ -101,6 +124,7 @@ export function resolveLetterhead(
     // cuma mengunggah logo tetap mendapat nama file lama.
     exportFilePrefix: judul === DEFAULT_JUDUL ? DEFAULT_PREFIX : slugify(judul),
     footerText: `Dicetak dari aplikasi Task Report Magang · ${kopBaris[0]}`,
+    persona: resolvePersona(settings.warna_primer, settings.warna_aksen),
   };
 }
 

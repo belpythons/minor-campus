@@ -8,16 +8,16 @@ Implementasi dari `QOL/modul-task-report/`. Modul ini mereplikasi sistem laporan
 
 | Rute | Berkas | Fungsi |
 |---|---|---|
-| `/reports/feed` | `src/app/(app)/reports/feed/page.tsx` | Daftar kegiatan seluruh peserta (view-only untuk milik orang lain) |
-| `/reports` | `src/app/(app)/reports/page.tsx` | Laporan Saya + 4 KPI card |
-| `/reports/new` | `src/app/(app)/reports/new/page.tsx` | Form input laporan harian |
-| `/reports/[id]` | `src/app/(app)/reports/[id]/page.tsx` | Detail + komentar & feedback |
-| `/reports/[id]/edit` | `src/app/(app)/reports/[id]/edit/page.tsx` | Ubah + hapus |
-| `/reports/export` | `src/app/(app)/reports/export/page.tsx` | Panel filter & pilihan ekspor |
-| `/print/rekap-magang` | `src/app/print/rekap-magang/page.tsx` | Dokumen cetak A4 PT Badak NGL |
-| `/api/export/xlsx` · `/api/export/csv` | `src/app/api/export/*/route.ts` | Unduhan data mentah |
+| `/reports/feed` | `src/pages/reports/FeedPage.tsx` | Daftar kegiatan seluruh peserta (view-only untuk milik orang lain) |
+| `/reports` | `src/pages/reports/MyReportsPage.tsx` | Laporan Saya + 4 KPI card |
+| `/reports/new` | `src/pages/reports/ReportFormPage.tsx` | Form input laporan harian |
+| `/reports/[id]` | `src/pages/reports/ReportDetailPage.tsx` | Detail + komentar & feedback |
+| `/reports/[id]/edit` | `src/pages/reports/ReportFormPage.tsx` | Ubah + hapus |
+| `/reports/export` | `src/pages/reports/ExportPage.tsx` | Panel filter & pilihan ekspor |
+| `/print/rekap-magang` | `src/pages/print/RekapMagangPage.tsx` | Dokumen cetak A4 PT Badak NGL |
+| _(tanpa rute)_ | `src/lib/export-client.ts` | Unduhan CSV / XLSX dibangun di peramban |
 
-Logika: `src/lib/report-stats.ts` (agregasi), `src/lib/report-query.ts` (filter + query bersama), `src/lib/export.ts` (baris ekspor), `src/app/print/print.css` (stylesheet A4).
+Logika: `src/lib/report-stats.ts` (agregasi), `src/lib/report-query.ts` (filter + query bersama), `src/lib/export.ts` (baris ekspor), `src/pages/print/print.css` (stylesheet A4).
 
 ---
 
@@ -179,7 +179,7 @@ Rincian lengkap: [UX-QA-AUDIT.md](UX-QA-AUDIT.md)
   tercetak gelap dan isi terpotong di kanan. Seluruh override `@media print`
   kini `!important`; **diverifikasi** PDF tema terang dan gelap identik
   byte-per-byte.
-- **`/api/export/*`** dulu membalas halaman HTML login saat sesi habis; sekarang
+- **Ekspor** dulu lewat route `/api/export/*` yang membalas halaman HTML login saat sesi habis; sekarang dikerjakan di peramban dan
   `401 JSON`.
 
 ### Yang berubah pada perilaku

@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRefresh } from "@/hooks/use-refresh";
 import { Pencil, Plus, Save, Trash2, Users, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +17,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/shared/empty-state";
 import { Field, fieldAria } from "@/components/shared/field";
 import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
-import { deleteSupervisor, saveSupervisor } from "@/app/(app)/logbook/actions";
+import { deleteSupervisor, saveSupervisor } from "@/lib/logbook-actions";
 import { describeError, notifyError, notifySuccess, notifyWarning } from "@/lib/notify";
 import { Collapsible, Stagger, StaggerItem } from "@/components/motion/motion-primitives";
 import type { Supervisor } from "@/lib/types";
@@ -43,7 +41,7 @@ const PERAN_OPTIONS = ["Pembimbing Utama", "Pendamping", "Penguji", "Mentor", "R
 const NO_PERAN = "__none__";
 
 export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
-  const router = useRouter();
+  const refresh = useRefresh();
   const confirm = useConfirm();
 
   const [mode, setMode] = React.useState<"idle" | "add" | { id: string }>("idle");
@@ -121,7 +119,7 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
 
     setBusy(false);
     cancel();
-    router.refresh();
+    refresh();
   }
 
   function askDelete(s: SupervisorRow) {
@@ -150,7 +148,7 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
     notifySuccess("Pembimbing dihapus", { description: pendingDelete.nama });
     confirm.close();
     setPendingDelete(null);
-    router.refresh();
+    refresh();
   }
 
   return (
@@ -304,7 +302,7 @@ export function SupervisorManager({ rows }: { rows: SupervisorRow[] }) {
         ) : (
           <>
             {/* --- Mobile cards --- */}
-            <Stagger className="divide-y divide-border lg:hidden" as="ul">
+            <Stagger className="divide-y-2 divide-foreground lg:hidden" as="ul">
               {rows.map((s) => (
                 <StaggerItem key={s.id} as="li" className="p-4">
                   <div className="flex items-start justify-between gap-3">

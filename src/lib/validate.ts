@@ -22,6 +22,15 @@ export function vOptionalStr(value: unknown, label: string, max = 255): string |
   return s;
 }
 
+/** Heks warna persona: null bila kosong, "#rrggbb" bila terisi. */
+export function vHexColor(value: unknown, label: string): string | null {
+  if (value == null || value === "") return null;
+  if (typeof value !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value.trim())) {
+    throw new ValidationError(`${label} harus berupa kode heks seperti #0057a8.`);
+  }
+  return value.trim().toLowerCase();
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function vDate(value: unknown, label: string): string {

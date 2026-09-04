@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import { Award, FileBadge, Pencil, Plus, SearchX } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +13,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  MotionTableRow,
+  Table,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { Pagination, paginate } from "@/components/shared/pagination";
@@ -24,7 +29,7 @@ import { useDebounced, useUrlFilters } from "@/hooks/use-url-filters";
 import { SKM_KATEGORI } from "@/lib/constants";
 import { formatTanggal, parseISODate } from "@/lib/format";
 import type { SkmActivity } from "@/lib/types";
-import { Stagger, StaggerItem } from "@/components/motion/motion-primitives";
+import { Stagger, StaggerItem, staggerChild } from "@/components/motion/motion-primitives";
 
 const ALL = "semua";
 
@@ -83,7 +88,7 @@ export function SkmList({ activities }: { activities: SkmActivity[] }) {
           description="Catat prestasi, organisasi, sertifikasi, kepanitiaan, atau pelatihan Anda untuk mulai mengumpulkan poin."
           action={
             <Button asChild variant="gradient">
-              <Link href="/skm/new">
+              <Link to="/skm/new">
                 <Plus aria-hidden />
                 Tambah Kegiatan SKM
               </Link>
@@ -157,7 +162,7 @@ export function SkmList({ activities }: { activities: SkmActivity[] }) {
         ) : (
           <>
             {/* --- Mobile: one card per row. A 6-column table is unusable here. --- */}
-            <Stagger className="divide-y divide-border lg:hidden" as="ul">
+            <Stagger className="divide-y-2 divide-foreground lg:hidden" as="ul">
               {rows.map((a) => (
                 <StaggerItem key={a.id} as="li" className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -210,7 +215,7 @@ export function SkmList({ activities }: { activities: SkmActivity[] }) {
                       </Button>
                     )}
                     <Button asChild variant="outline" size="sm" className="flex-1">
-                      <Link href={`/skm/${a.id}/edit`}>
+                      <Link to={`/skm/${a.id}/edit`}>
                         <Pencil aria-hidden />
                         Ubah
                       </Link>
@@ -235,9 +240,9 @@ export function SkmList({ activities }: { activities: SkmActivity[] }) {
                     </TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <Stagger as="tbody">
                   {rows.map((a) => (
-                    <TableRow key={a.id}>
+                    <MotionTableRow key={a.id} variants={staggerChild}>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
                         {formatTanggal(a.tanggal_mulai)}
                         {a.tanggal_selesai && (
@@ -294,15 +299,15 @@ export function SkmList({ activities }: { activities: SkmActivity[] }) {
 
                       <TableCell className="text-right">
                         <Button asChild variant="outline" size="xs">
-                          <Link href={`/skm/${a.id}/edit`}>
+                          <Link to={`/skm/${a.id}/edit`}>
                             <Pencil aria-hidden />
                             Ubah
                           </Link>
                         </Button>
                       </TableCell>
-                    </TableRow>
+                    </MotionTableRow>
                   ))}
-                </TableBody>
+                </Stagger>
               </Table>
             </div>
 

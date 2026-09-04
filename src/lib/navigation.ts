@@ -5,6 +5,7 @@ import {
   ClipboardCopy,
   FileText,
   FolderKanban,
+  HelpCircle,
   LayoutDashboard,
   NotebookPen,
   Printer,
@@ -101,6 +102,10 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Akun",
     items: [{ href: "/account", label: "Profil & Pengesahan", icon: UserCog }],
+  },
+  {
+    title: "Bantuan",
+    items: [{ href: "/faq", label: "FAQ & Tentang", icon: HelpCircle }],
   },
 ];
 

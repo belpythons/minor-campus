@@ -7,7 +7,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import puppeteer from "puppeteer-core";
-import { QA_EMAIL, QA_PASSWORD, findChrome } from "./_chrome.mjs";
+import { findChrome, qaEmail, qaPassword } from "./_chrome.mjs";
 
 const CHROME = findChrome();
 const outDir = process.argv[2];
@@ -24,8 +24,8 @@ const env = Object.fromEntries(
     }),
 );
 
-const EMAIL = QA_EMAIL;
-const PASSWORD = QA_PASSWORD;
+const EMAIL = qaEmail();
+const PASSWORD = qaPassword();
 
 const findings = [];
 const consoleErrors = [];
@@ -65,6 +65,14 @@ async function goto(path) {
     // A blocked unload can stall networkidle2; the document still loads.
     await page.goto(base + path, { waitUntil: "domcontentloaded", timeout: 30000 });
   }
+  /*
+    Tanpa SSR, `networkidle2` bisa selesai sebelum React sempat merender apa
+    pun: dokumen pertama hanyalah <div id="root"></div> yang kosong. Menunggu
+    root benar-benar terisi mencegah tangkapan layar berisi halaman putih.
+  */
+  await page
+    .waitForFunction(() => document.querySelector("#root")?.children.length, { timeout: 15000 })
+    .catch(() => {});
   // Let framer-motion entrance animations settle before capturing.
   await new Promise((r) => setTimeout(r, 550));
 }

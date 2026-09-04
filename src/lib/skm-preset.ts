@@ -24,7 +24,7 @@ export interface SkmPointRule {
 }
 
 /** Fallback bila seed belum berjalan — perilaku lama tetap hidup. */
-export const FALLBACK_PRESET: SkmPreset = {
+const FALLBACK_PRESET: SkmPreset = {
   id: "custom",
   nama: "Kustom (bawaan aplikasi)",
   deskripsi: null,

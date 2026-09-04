@@ -1,7 +1,5 @@
-"use client";
-
 import { AlertTriangle, ChevronLeft, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -31,7 +29,7 @@ export function ErrorView({
   return (
     <Card className="mx-auto max-w-lg p-6 text-center">
       <span
-        className="mx-auto flex size-11 items-center justify-center rounded-full bg-destructive/12 text-destructive"
+        className="mx-auto flex size-11 items-center justify-center rounded-xl border border-foreground bg-destructive text-destructive-foreground"
         aria-hidden
       >
         <AlertTriangle className="size-5" />
@@ -50,7 +48,7 @@ export function ErrorView({
           </Button>
         )}
         <Button asChild variant="outline">
-          <Link href={backHref}>
+          <Link to={backHref}>
             <ChevronLeft aria-hidden />
             {backLabel}
           </Link>

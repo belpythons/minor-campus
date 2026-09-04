@@ -1,8 +1,7 @@
-"use client";
-
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useRefresh } from "@/hooks/use-refresh";
 import { Plus, Save, Trash2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,7 +31,7 @@ import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { UnsavedBar } from "@/components/shared/unsaved-bar";
 import { QuickAdvice } from "@/components/logbook/quick-advice";
 import { createClient } from "@/lib/supabase/client";
-import { deleteLogbookEntry, saveLogbookEntry } from "@/app/(app)/logbook/actions";
+import { deleteLogbookEntry, saveLogbookEntry } from "@/lib/logbook-actions";
 import { todayISO } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
 import { useDirtyState, useUnsavedChanges } from "@/hooks/use-unsaved-changes";
@@ -73,7 +72,8 @@ export function LogbookForm({
   projects?: Project[];
   defaultProjectId?: string | null;
 }) {
-  const router = useRouter();
+  const navigate = useNavigate();
+  const refresh = useRefresh();
   const isEdit = Boolean(initial);
   const confirm = useConfirm();
 
@@ -206,8 +206,8 @@ export function LogbookForm({
         return;
       }
 
-      router.push("/logbook");
-      router.refresh();
+      navigate("/logbook");
+      refresh();
     } catch (err) {
       notifyError("Gagal menyimpan entri", { description: describeError(err) });
       setBusy(false);
@@ -228,8 +228,8 @@ export function LogbookForm({
 
     notifySuccess("Entri log book dihapus", { description: `No. ${initial.nomor_urut}` });
     confirm.close();
-    router.push("/logbook");
-    router.refresh();
+    navigate("/logbook");
+    refresh();
   }
 
   return (
@@ -340,7 +340,7 @@ export function LogbookForm({
             </Field>
 
             <Collapsible open={addingNew}>
-              <div className="space-y-4 rounded-md border border-border bg-muted/40 p-3.5">
+              <div className="space-y-4 rounded-md border border-foreground bg-muted/40 p-3.5">
                 <p className="flex items-center gap-1.5 text-[12.5px] font-semibold text-foreground">
                   <Plus className="size-3.5" aria-hidden />
                   Supervisor Baru
@@ -415,7 +415,7 @@ export function LogbookForm({
               />
             </Field>
 
-            <div className="flex items-start gap-2.5 rounded-md border border-border bg-muted/40 p-3">
+            <div className="flex items-start gap-2.5 rounded-md border border-foreground bg-muted/40 p-3">
               <Checkbox
                 id="paraf"
                 checked={form.paraf}
@@ -442,7 +442,7 @@ export function LogbookForm({
               {busy ? "Menyimpan…" : "Simpan Entri"}
             </Button>
             <Button asChild variant="outline" disabled={busy}>
-              <Link href="/logbook">Batal</Link>
+              <Link to="/logbook">Batal</Link>
             </Button>
           </div>
 
@@ -477,8 +477,8 @@ export function LogbookForm({
         onOpenChange={(o) => {
           if (!o) {
             setSavedSession(null);
-            router.push("/logbook");
-            router.refresh();
+            navigate("/logbook");
+            refresh();
           }
         }}
       >
@@ -507,8 +507,8 @@ export function LogbookForm({
               variant="gradient"
               onClick={() => {
                 setSavedSession(null);
-                router.push("/logbook");
-                router.refresh();
+                navigate("/logbook");
+                refresh();
               }}
             >
               Selesai

@@ -5,7 +5,7 @@
  */
 import { mkdirSync } from "node:fs";
 import puppeteer from "puppeteer-core";
-import { QA_EMAIL, QA_PASSWORD, findChrome } from "./_chrome.mjs";
+import { findChrome, qaEmail, qaPassword } from "./_chrome.mjs";
 
 const CHROME = findChrome();
 const outDir = process.argv[2];
@@ -21,8 +21,8 @@ const page = await browser.newPage();
 await page.setViewport({ width: 1360, height: 900 });
 
 await page.goto(`${base}/login`, { waitUntil: "networkidle2" });
-await page.type('input[type="email"]', QA_EMAIL);
-await page.type('input[type="password"]', QA_PASSWORD);
+await page.type('input[type="email"]', qaEmail());
+await page.type('input[type="password"]', qaPassword());
 await Promise.all([
   page.waitForNavigation({ waitUntil: "networkidle2" }).catch(() => {}),
   page.click('button[type="submit"]'),
@@ -50,6 +50,10 @@ for (const theme of ["light", "dark"]) {
 
   for (const [slug, path] of docs) {
     await page.goto(base + path, { waitUntil: "networkidle2" });
+    // Lembar cetak dirender klien; tunggu isinya ada sebelum page.pdf().
+    await page
+      .waitForFunction(() => document.querySelector(".sheet"), { timeout: 15000 })
+      .catch(() => {});
     await new Promise((r) => setTimeout(r, 800));
 
     await page.pdf({

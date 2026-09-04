@@ -6,19 +6,22 @@ import {
   slugify,
   type LetterheadSettings,
 } from "./letterhead";
+import { DEFAULT_PERSONA, deriveAccent } from "./persona";
 
 function row(overrides: Partial<LetterheadSettings> = {}): LetterheadSettings {
   return {
     user_id: "u1",
     kop_baris: ["PT BADAK NGL", "Program Magang / Praktik Kerja Lapangan · Bontang, Kalimantan Timur"],
     judul_dokumen: "LAPORAN KEGIATAN MAGANG",
-    kampus_upper: "SEKOLAH TINGGI TEKNOLOGI BONTANG",
+    kampus_upper: "UNIVERSITAS SAINS DAN TEKNOLOGI BONTANG",
     prodi_upper: "PROGRAM STUDI TEKNIK INFORMATIKA",
     formulir_title: "FORM KEHADIRAN DAN AKTIFITAS KERJA PRAKTEK",
     kode_sop: "TI-SOP-17/FM-01",
     lokasi_ttd: "Bontang",
     logo_url: null,
     logo_versi: 0,
+    warna_primer: null,
+    warna_aksen: null,
     updated_at: null,
     ...overrides,
   };
@@ -35,10 +38,10 @@ describe("resolveLetterhead without settings", () => {
     expect(lh.formulirTitle).toBe(ORG.formulirTitle);
     expect(lh.kodeSop).toBe(ORG.kodeSop);
     expect(lh.lokasiTtd).toBe(ORG.lokasi);
-    expect(lh.logoSrc).toBe("/logo.png");
+    expect(lh.logoSrc).toBe("/icon.png");
     expect(lh.customLogo).toBe(false);
     expect(lh.orgNama).toBe(ORG.perusahaanMixed);
-    expect(lh.appSubtitle).toBe("STITEK · PT Badak NGL");
+    expect(lh.appSubtitle).toBe("USTB · PT Badak NGL");
     expect(lh.exportFilePrefix).toBe("laporan-magang");
     expect(lh.footerText).toBe(
       `Dicetak dari aplikasi Task Report Magang · ${ORG.perusahaanMixed}`,
@@ -93,5 +96,26 @@ describe("slugify", () => {
   it("slugs Indonesian document titles", () => {
     expect(slugify("LAPORAN PKL — Teknik Informatika")).toBe("laporan-pkl-teknik-informatika");
     expect(slugify("   ")).toBe("laporan-magang");
+  });
+});
+
+describe("persona kampus (dok 05)", () => {
+  it("jatuh ke biru Badak saat kedua kolom warna kosong", () => {
+    expect(resolveLetterhead(row()).persona).toEqual(DEFAULT_PERSONA);
+  });
+
+  it("memakai kedua warna apa adanya bila lengkap", () => {
+    const lh = resolveLetterhead(row({ warna_primer: "#123456", warna_aksen: "#abcdef" }));
+    expect(lh.persona).toEqual({ primary: "#123456", accent: "#abcdef" });
+  });
+
+  it("menurunkan aksen bila hanya jangkar yang tersimpan", () => {
+    const lh = resolveLetterhead(row({ warna_primer: "#1b5e20" }));
+    expect(lh.persona.primary).toBe("#1b5e20");
+    expect(lh.persona.accent).toBe(deriveAccent("#1b5e20"));
+  });
+
+  it("mengabaikan nilai yang bukan heks", () => {
+    expect(resolveLetterhead(row({ warna_primer: "hijau" })).persona).toEqual(DEFAULT_PERSONA);
   });
 });

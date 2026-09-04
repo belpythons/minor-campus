@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     nama_lengkap VARCHAR(255) NOT NULL,
     nim VARCHAR(50) NOT NULL,
     prodi VARCHAR(100) DEFAULT 'Teknik Informatika',
-    instansi VARCHAR(255) DEFAULT 'Sekolah Tinggi Teknologi Bontang',
+    instansi VARCHAR(255) DEFAULT 'Universitas Sains dan Teknologi Bontang',
     tempat_kp VARCHAR(255) DEFAULT 'PT Badak NGL',
     email VARCHAR(255) UNIQUE NOT NULL,
     -- EXTENSION: signature block of Formulir 2 (modul-logbook/02) + recap period (modul-task-report/03)
@@ -142,7 +142,7 @@ END $$;
 -- ---------------------------------------------------------------------
 -- 8. letterhead_settings   (EXTENSION — dok 03 kop surat fleksibel)
 --    Per-user letterhead identity for both printed documents. Absent row
---    = built-in Badak NGL / STITEK defaults, so existing output is
+--    = built-in Badak NGL / USTB defaults, so existing output is
 --    untouched until the user opts in.
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS letterhead_settings (
@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS letterhead_settings (
                     'Program Magang / Praktik Kerja Lapangan · Bontang, Kalimantan Timur'],
     judul_dokumen VARCHAR(160) NOT NULL DEFAULT 'LAPORAN KEGIATAN MAGANG',
     -- Kop Formulir 2 (identitas kampus)
-    kampus_upper  VARCHAR(160) NOT NULL DEFAULT 'SEKOLAH TINGGI TEKNOLOGI BONTANG',
+    kampus_upper  VARCHAR(160) NOT NULL DEFAULT 'UNIVERSITAS SAINS DAN TEKNOLOGI BONTANG',
     prodi_upper   VARCHAR(160) NOT NULL DEFAULT 'PROGRAM STUDI TEKNIK INFORMATIKA',
     formulir_title VARCHAR(160) NOT NULL DEFAULT 'FORM KEHADIRAN DAN AKTIFITAS KERJA PRAKTEK',
     kode_sop      VARCHAR(60)  NOT NULL DEFAULT 'TI-SOP-17/FM-01',
@@ -164,6 +164,14 @@ CREATE TABLE IF NOT EXISTS letterhead_settings (
     logo_versi    INT NOT NULL DEFAULT 0,
     updated_at    TIMESTAMPTZ DEFAULT TIMEZONE('utc', NOW())
 );
+
+-- EXTENSION (dok 05): warna persona kampus. primer = jangkar gelap (--navy),
+-- aksen = warna kerja (--blue / --primary). NULL pada keduanya = biru bawaan.
+-- Sengaja tanpa CHECK: PG tak punya ADD CONSTRAINT IF NOT EXISTS (merusak
+-- idempotensi berkas ini), dan pelanggarannya di dalam trigger signup akan
+-- membatalkan seluruh pendaftaran. Validasi ada di saveLetterhead.
+ALTER TABLE letterhead_settings ADD COLUMN IF NOT EXISTS warna_primer VARCHAR(7);
+ALTER TABLE letterhead_settings ADD COLUMN IF NOT EXISTS warna_aksen  VARCHAR(7);
 
 -- ---------------------------------------------------------------------
 -- 9. Persona kampus SKM   (EXTENSION — dok 01)
@@ -208,7 +216,7 @@ CREATE POLICY "point rules readable" ON skm_point_rules
 -- Seed persona (angka target diverifikasi ulang 30 Agu 2026; bobot rule kampus
 -- adalah estimasi tersekala dari anchor pedoman → verifikasi='sekunder').
 INSERT INTO institution_presets (id, nama, deskripsi, target_poin, target_jam_sosial, sumber_url, verifikasi) VALUES
-  ('custom',    'Kustom (bawaan aplikasi)', 'Aturan poin bawaan Student Hub — baseline STITEK Bontang.', 50, NULL,
+  ('custom',    'Kustom (bawaan aplikasi)', 'Aturan poin bawaan Student Hub — baseline USTB Bontang.', 50, NULL,
    NULL, 'resmi'),
   ('its-skem',  'ITS — SKEM', 'Satuan Kegiatan Ekstrakurikuler Mahasiswa ITS. Minimum yudisium S1 1000 poin (D3 750); predikat Cukup s.d. Sangat Baik. Bobot per kegiatan = estimasi tersekala dari anchor pedoman.', 1000, NULL,
    'https://www.its.ac.id/it/id/mahasiswa/konsep-satuan-kredit-ekstrakulikuler-mahasiswa/', 'sekunder'),
@@ -859,10 +867,31 @@ BEGIN
         COALESCE(NEW.raw_user_meta_data ->> 'nama_lengkap', SPLIT_PART(NEW.email, '@', 1)),
         COALESCE(NEW.raw_user_meta_data ->> 'nim', '-'),
         NEW.email,
-        COALESCE(NEW.raw_user_meta_data ->> 'instansi', 'Sekolah Tinggi Teknologi Bontang'),
+        COALESCE(NEW.raw_user_meta_data ->> 'instansi', 'Universitas Sains dan Teknologi Bontang'),
         COALESCE(NEW.raw_user_meta_data ->> 'tempat_kp', 'PT Badak NGL')
     )
     ON CONFLICT (id) DO NOTHING;
+
+    -- EXTENSION (dok 05): persona kampus dari metadata pendaftaran, sehingga
+    -- warna sudah hidup begitu pengguna login pertama kali — tanpa kode klien.
+    -- Semua nilai ekstraksi ->> polos tanpa cast: fungsi ini TIDAK BOLEH raise,
+    -- karena galat apa pun di sini membatalkan seluruh signup.
+    IF NULLIF(NEW.raw_user_meta_data ->> 'logo_url', '') IS NOT NULL THEN
+        INSERT INTO public.letterhead_settings (
+            user_id, logo_url, warna_primer, warna_aksen, kampus_upper
+        )
+        VALUES (
+            NEW.id,
+            NEW.raw_user_meta_data ->> 'logo_url',
+            NULLIF(NEW.raw_user_meta_data ->> 'warna_primer', ''),
+            NULLIF(NEW.raw_user_meta_data ->> 'warna_aksen', ''),
+            COALESCE(
+                NULLIF(UPPER(NEW.raw_user_meta_data ->> 'instansi'), ''),
+                'UNIVERSITAS SAINS DAN TEKNOLOGI BONTANG')
+        )
+        ON CONFLICT (user_id) DO NOTHING;
+    END IF;
+
     RETURN NEW;
 END;
 $$;
@@ -976,3 +1005,149 @@ CREATE POLICY "qol owner delete" ON storage.objects
         bucket_id IN ('skm-certificates', 'report-photos', 'org-logos')
         AND (STORAGE.FOLDERNAME(name))[1] = auth.uid()::TEXT
     );
+
+
+-- =====================================================================
+-- Migrasi SPA: penegakan yang pindah dari kode aplikasi ke database
+-- ---------------------------------------------------------------------
+-- Setelah frontend menjadi SPA, server action dan API route yang dulu
+-- menegakkan aturan-aturan di bawah ini berjalan di peramban. Aturan yang
+-- benar-benar penting karena itu dipindahkan ke sini, tempat yang tidak bisa
+-- dilewati dari konsol peramban.
+-- =====================================================================
+
+-- --------------------------------------------------------------- rate limit
+-- Menggantikan penghitung Map di memori pada POST /api/onboarding/logo. Isolate
+-- Edge Function didaur ulang kapan saja dan berjalan di banyak region, jadi
+-- penghitung dalam proses mereset dirinya persis ketika paling dibutuhkan.
+CREATE TABLE IF NOT EXISTS public.rate_limits (
+    key          TEXT PRIMARY KEY,
+    hits         INT NOT NULL DEFAULT 0,
+    window_start TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.rate_limits ENABLE ROW LEVEL SECURITY;
+-- Tanpa policy = tertutup rapat. Hanya service role (Edge Function) yang masuk,
+-- dan itu pun lewat RPC di bawah.
+
+CREATE OR REPLACE FUNCTION public.bump_rate_limit(
+    p_key TEXT,
+    p_window_minutes INT,
+    p_max INT
+) RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+    v_hits INT;
+BEGIN
+    INSERT INTO public.rate_limits AS r (key, hits, window_start)
+    VALUES (p_key, 1, NOW())
+    ON CONFLICT (key) DO UPDATE
+        SET hits = CASE
+                WHEN r.window_start < NOW() - (p_window_minutes || ' minutes')::INTERVAL
+                THEN 1
+                ELSE r.hits + 1
+            END,
+            window_start = CASE
+                WHEN r.window_start < NOW() - (p_window_minutes || ' minutes')::INTERVAL
+                THEN NOW()
+                ELSE r.window_start
+            END
+    RETURNING r.hits INTO v_hits;
+
+    RETURN v_hits > p_max;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.bump_rate_limit(TEXT, INT, INT) FROM PUBLIC, anon, authenticated;
+
+-- ------------------------------------------------------- identitas terkunci
+-- NIM dan nama kampus ditetapkan saat pendaftaran dan muncul di kop kedua
+-- dokumen resmi. Trigger, bukan RLS: RLS mengatur baris mana yang boleh
+-- disentuh, bukan kolom mana. Sengaja TANPA SECURITY DEFINER, sehingga service
+-- role tetap bisa memperbaiki data lewat SQL editor.
+CREATE OR REPLACE FUNCTION public.profiles_lock_identity() RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_claims TEXT := COALESCE(current_setting('request.jwt.claims', TRUE), '');
+BEGIN
+    -- Jalur admin: SQL editor / psql tidak punya klaim JWT sama sekali, dan
+    -- service_role memang dimaksudkan untuk memperbaiki data. Tanpa jalan keluar
+    -- ini tidak ada seorang pun yang bisa membetulkan NIM yang salah ketik,
+    -- karena trigger tetap menyala untuk peran apa pun.
+    IF v_claims = '' OR v_claims LIKE '%"role":"service_role"%' THEN
+        RETURN NEW;
+    END IF;
+
+    -- '-' adalah placeholder yang dipasang handle_new_user() ketika pendaftaran
+    -- tidak menyertakan NIM. Memperlakukannya sebagai nilai sah akan mengunci
+    -- pengguna itu selamanya pada tanda hubung.
+    IF OLD.nim IS NOT NULL AND OLD.nim NOT IN ('', '-')
+       AND NEW.nim IS DISTINCT FROM OLD.nim THEN
+        RAISE EXCEPTION 'NIM terkunci sejak pendaftaran. Hubungi admin bila keliru.';
+    END IF;
+
+    IF OLD.instansi IS NOT NULL AND OLD.instansi <> ''
+       AND NEW.instansi IS DISTINCT FROM OLD.instansi THEN
+        RAISE EXCEPTION 'Nama kampus terkunci sejak pendaftaran. Hubungi admin bila keliru.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS profiles_identity_locked ON public.profiles;
+CREATE TRIGGER profiles_identity_locked
+    BEFORE UPDATE ON public.profiles
+    FOR EACH ROW EXECUTE FUNCTION public.profiles_lock_identity();
+
+-- ------------------------------------------------------------- logo_url sah
+-- Menggantikan allowlist di saveLetterhead(), yang kini berjalan di peramban.
+-- "pending/" adalah prefix logo yang diunggah saat pendaftaran, sebelum akun
+-- ada; bucket ini publik-baca, jadi menerimanya tidak lebih lemah daripada
+-- menerima prefix milik sendiri.
+CREATE OR REPLACE FUNCTION public.letterhead_check_logo() RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_base TEXT;
+BEGIN
+    IF NEW.logo_url IS NULL OR NEW.logo_url = '' THEN
+        RETURN NEW;
+    END IF;
+
+    v_base := '/storage/v1/object/public/org-logos/';
+
+    IF POSITION(v_base || NEW.user_id::TEXT || '/' IN NEW.logo_url) = 0
+       AND POSITION(v_base || 'pending/' IN NEW.logo_url) = 0 THEN
+        RAISE EXCEPTION 'URL logo harus berasal dari bucket org-logos milik Anda.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS letterhead_logo_checked ON public.letterhead_settings;
+CREATE TRIGGER letterhead_logo_checked
+    BEFORE INSERT OR UPDATE ON public.letterhead_settings
+    FOR EACH ROW EXECUTE FUNCTION public.letterhead_check_logo();
+
+
+-- =====================================================================
+-- EXTENSION (identitas, 4 Sep 2026): STITEK -> Universitas Sains dan
+-- Teknologi Bontang. DEFAULT pada CREATE TABLE di atas hanya berlaku untuk
+-- instalasi baru, jadi basis data yang sudah jalan perlu ALTER + UPDATE.
+-- Idempoten: UPDATE-nya bersyarat nilai lama, jalan kedua jadi no-op.
+-- =====================================================================
+ALTER TABLE profiles ALTER COLUMN instansi
+    SET DEFAULT 'Universitas Sains dan Teknologi Bontang';
+ALTER TABLE letterhead_settings ALTER COLUMN kampus_upper
+    SET DEFAULT 'UNIVERSITAS SAINS DAN TEKNOLOGI BONTANG';
+
+UPDATE profiles SET instansi = 'Universitas Sains dan Teknologi Bontang'
+    WHERE instansi = 'Sekolah Tinggi Teknologi Bontang';
+UPDATE letterhead_settings SET kampus_upper = 'UNIVERSITAS SAINS DAN TEKNOLOGI BONTANG'
+    WHERE kampus_upper = 'SEKOLAH TINGGI TEKNOLOGI BONTANG';

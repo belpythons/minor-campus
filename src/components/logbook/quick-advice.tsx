@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { Lightbulb, Plus } from "lucide-react";
 
@@ -25,7 +23,7 @@ import {
 import { Field } from "@/components/shared/field";
 import { ADVICE_STATUS_BADGE } from "@/lib/advice-status";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
-import { createAdvice } from "@/app/(app)/logbook/actions";
+import { createAdvice } from "@/lib/logbook-actions";
 import type { Advice, AdviceStatus, Supervisor } from "@/lib/types";
 
 const TANPA_PENYARAN = "__none__";
@@ -218,7 +216,7 @@ export function QuickAdvice({
               return (
                 <label
                   key={a.id}
-                  className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border p-2.5 text-[13px] has-[:checked]:border-primary has-[:checked]:bg-primary/[0.06]"
+                  className="flex cursor-pointer items-start gap-2.5 rounded-md border border-foreground p-2.5 text-[13px] has-[:checked]:border-primary has-[:checked]:bg-primary/[0.06]"
                 >
                   <input
                     type="radio"

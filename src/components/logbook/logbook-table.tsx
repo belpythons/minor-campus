@@ -1,8 +1,6 @@
-"use client";
-
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router-dom";
+import { useRefresh } from "@/hooks/use-refresh";
 import {
   BookOpen,
   Check,
@@ -25,17 +23,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  MotionTableRow,
+  Table,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FilterBar } from "@/components/shared/filter-bar";
 import { Pagination, paginate } from "@/components/shared/pagination";
 import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { useDebounced, useUrlFilters } from "@/hooks/use-url-filters";
-import { renumberLogbook } from "@/app/(app)/logbook/actions";
+import { renumberLogbook } from "@/lib/logbook-actions";
 import { formatHariTanggal } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
 import type { LogbookEntry, Project, Supervisor } from "@/lib/types";
-import { Stagger, StaggerItem } from "@/components/motion/motion-primitives";
+import { Stagger, StaggerItem, staggerChild } from "@/components/motion/motion-primitives";
 
 const ALL = "semua";
 const PARAF_ALL = "semua";
@@ -68,7 +73,7 @@ export function LogbookTable({
     () => new Map(projects.map((p) => [p.id, p])),
     [projects],
   );
-  const router = useRouter();
+  const refresh = useRefresh();
   const { values, write, reset, activeCount, page, setPage } = useUrlFilters(DEFAULTS);
   const renumber = useConfirm();
 
@@ -127,7 +132,7 @@ export function LogbookTable({
       description: `${entries.length} entri diberi nomor 1–${entries.length} urut tanggal.`,
     });
     renumber.close();
-    router.refresh();
+    refresh();
   }
 
   if (entries.length === 0) {
@@ -139,7 +144,7 @@ export function LogbookTable({
           description="Catat aktivitas kerja praktek dan sesi konsultasi Anda untuk mengisi Formulir 2."
           action={
             <Button asChild variant="gradient">
-              <Link href="/logbook/new">
+              <Link to="/logbook/new">
                 <Plus aria-hidden />
                 Tambah Entri
               </Link>
@@ -255,7 +260,7 @@ export function LogbookTable({
         ) : (
           <>
             {/* --- Mobile cards --- */}
-            <Stagger className="divide-y divide-border lg:hidden" as="ul">
+            <Stagger className="divide-y-2 divide-foreground lg:hidden" as="ul">
               {rows.map((e) => (
                 <StaggerItem key={e.id} as="li" className="p-4">
                   <div className="flex items-start justify-between gap-3">
@@ -291,10 +296,10 @@ export function LogbookTable({
 
                   <div className="mt-3 flex gap-2">
                     <Button asChild variant="outline" size="sm" className="flex-1">
-                      <Link href={`/logbook/${e.id}`}>Detail</Link>
+                      <Link to={`/logbook/${e.id}`}>Detail</Link>
                     </Button>
                     <Button asChild variant="outline" size="sm" className="flex-1">
-                      <Link href={`/logbook/${e.id}/edit`}>
+                      <Link to={`/logbook/${e.id}/edit`}>
                         <Pencil aria-hidden />
                         Ubah Entri
                       </Link>
@@ -319,9 +324,9 @@ export function LogbookTable({
                     </TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>
+                <Stagger as="tbody">
                   {rows.map((e) => (
-                    <TableRow key={e.id}>
+                    <MotionTableRow key={e.id} variants={staggerChild}>
                       <TableCell className="text-center text-muted-foreground tnum">
                         {e.nomor_urut}
                       </TableCell>
@@ -363,19 +368,19 @@ export function LogbookTable({
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1.5">
                           <Button asChild variant="outline" size="xs">
-                            <Link href={`/logbook/${e.id}`}>Detail</Link>
+                            <Link to={`/logbook/${e.id}`}>Detail</Link>
                           </Button>
                           <Button asChild variant="outline" size="xs">
-                            <Link href={`/logbook/${e.id}/edit`}>
+                            <Link to={`/logbook/${e.id}/edit`}>
                               <Pencil aria-hidden />
                               Ubah
                             </Link>
                           </Button>
                         </div>
                       </TableCell>
-                    </TableRow>
+                    </MotionTableRow>
                   ))}
-                </TableBody>
+                </Stagger>
               </Table>
             </div>
 

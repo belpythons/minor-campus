@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRefresh } from "@/hooks/use-refresh";
 import { Save } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Field, fieldAria } from "@/components/shared/field";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
-import { saveProject } from "@/app/(app)/logbook/actions";
+import { saveProject } from "@/lib/logbook-actions";
 import type { Project } from "@/lib/types";
 
 const JENIS = ["Jurnal", "Tugas Akhir", "Lomba", "KP", "Lainnya"];
@@ -33,7 +31,7 @@ export function ProjectForm({
   initial?: Project;
   onSaved?: (id: string) => void;
 }) {
-  const router = useRouter();
+  const refresh = useRefresh();
   const [form, setForm] = React.useState({
     judul: initial?.judul ?? "",
     jenis: initial?.jenis ?? "Jurnal",
@@ -78,7 +76,7 @@ export function ProjectForm({
     if (!initial) {
       setForm({ judul: "", jenis: "Jurnal", deskripsi: "", fase: "", targetTanggal: "", status: "aktif", pertanyaanBaru: "" });
     }
-    router.refresh();
+    refresh();
     onSaved?.(result.id);
   }
 

@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRefresh } from "@/hooks/use-refresh";
 import { CheckCircle2, Gavel, ShieldAlert, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +20,7 @@ import { ADVICE_STATUS_BADGE, validateDecision } from "@/lib/advice-status";
 import { openConflicts } from "@/lib/project-query";
 import { formatTanggal } from "@/lib/format";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
-import { decideConflict, decideSynthesis, setAdviceStatus } from "@/app/(app)/logbook/actions";
+import { decideConflict, decideSynthesis, setAdviceStatus } from "@/lib/logbook-actions";
 import type { Advice, AdviceRelation, AdviceStatus, Supervisor } from "@/lib/types";
 
 function AdviceItem({
@@ -37,7 +35,7 @@ function AdviceItem({
   const badge = ADVICE_STATUS_BADGE[advice.status as AdviceStatus];
   const dim = advice.status === "ditolak" || advice.status === "di-supersede";
   return (
-    <div className={`rounded-md border border-border p-3 ${dim ? "opacity-60" : ""}`}>
+    <div className={`rounded-md border border-foreground p-3 ${dim ? "opacity-60" : ""}`}>
       <div className="flex flex-wrap items-center gap-1.5">
         <b className="text-[13px]">{advice.penyaran_nama}</b>
         {badge && <Badge variant={badge.variant}>{badge.label}</Badge>}
@@ -83,7 +81,7 @@ export function AdviceBoard({
   relations: AdviceRelation[];
   advisors: Supervisor[];
 }) {
-  const router = useRouter();
+  const refresh = useRefresh();
   const byId = React.useMemo(() => new Map(advice.map((a) => [a.id, a])), [advice]);
 
   // ---- dialog adopsi/tolak tunggal ----
@@ -137,7 +135,7 @@ export function AdviceBoard({
     notifySuccess(single.status === "diadopsi" ? "Saran diadopsi" : "Saran ditolak");
     setSingle(null);
     setAlasan("");
-    router.refresh();
+    refresh();
   }
 
   async function submitConflict() {
@@ -170,7 +168,7 @@ export function AdviceBoard({
     setConflict(null);
     setAlasan("");
     setSintesis("");
-    router.refresh();
+    refresh();
   }
 
   return (
@@ -189,7 +187,7 @@ export function AdviceBoard({
           </CardHeader>
           <CardContent className="space-y-3">
             {konflik.map((k) => (
-              <div key={`${k.a.id}-${k.b.id}`} className="rounded-md border border-border p-3">
+              <div key={`${k.a.id}-${k.b.id}`} className="rounded-md border border-foreground p-3">
                 <p className="text-[12px] font-bold uppercase tracking-wide text-muted-foreground">
                   Area: {k.a.area}
                 </p>
@@ -235,7 +233,7 @@ export function AdviceBoard({
             projectId={projectId}
             advisors={advisors}
             existingAdvice={advice}
-            onCreated={() => router.refresh()}
+            onCreated={() => refresh()}
           />
 
           {areas.length === 0 ? (
@@ -316,7 +314,7 @@ export function AdviceBoard({
               ).map(([key, a]) => (
                 <label
                   key={key}
-                  className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border p-2.5 text-[13px] has-[:checked]:border-primary has-[:checked]:bg-primary/[0.06]"
+                  className="flex cursor-pointer items-start gap-2.5 rounded-md border border-foreground p-2.5 text-[13px] has-[:checked]:border-primary has-[:checked]:bg-primary/[0.06]"
                 >
                   <input
                     type="radio"
@@ -331,7 +329,7 @@ export function AdviceBoard({
                   </span>
                 </label>
               ))}
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border p-2.5 text-[13px] has-[:checked]:border-primary has-[:checked]:bg-primary/[0.06]">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-foreground p-2.5 text-[13px] has-[:checked]:border-primary has-[:checked]:bg-primary/[0.06]">
               <input
                 type="radio"
                 name="conflict-winner"

@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRefresh } from "@/hooks/use-refresh";
 import { Landmark, Plus, RotateCcw, Save, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,19 +12,21 @@ import { createClient } from "@/lib/supabase/client";
 import { removePublicFile, uploadPublicFile } from "@/lib/upload";
 import { MAX_LOGO_SIZE, STORAGE_BUCKET_ORG_LOGOS } from "@/lib/constants";
 import { resolveLetterhead, type Letterhead, type LetterheadSettings } from "@/lib/letterhead";
+import { dominantColors } from "@/lib/logo-analyze";
+import { sampleRgba } from "@/lib/logo-canvas";
+import { makePersona } from "@/lib/persona";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
-import { resetLetterhead, saveLetterhead } from "@/app/(app)/account/actions";
+import { resetLetterhead, saveLetterhead } from "@/lib/letterhead-actions";
 
 /** Miniature render of both document letterheads — what print.css will do. */
 function KopPreview({ lh }: { lh: Letterhead }) {
-  const navy = "#001e41";
+  const navy = lh.persona.primary;
   return (
-    <div className="space-y-3 rounded-md border border-border bg-white p-4 text-black">
+    <div className="space-y-3 rounded-md border border-foreground bg-white p-4 text-black">
       <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
         Pratinjau kop — Rekap Magang
       </p>
       <div style={{ display: "flex", alignItems: "center", gap: 12, borderBottom: `3px solid ${navy}`, paddingBottom: 10 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={lh.logoSrc}
           alt=""
@@ -50,7 +50,6 @@ function KopPreview({ lh }: { lh: Letterhead }) {
       </p>
       <div style={{ display: "flex", alignItems: "stretch", border: "1.5px solid #000" }}>
         <div style={{ width: 72, display: "flex", alignItems: "center", justifyContent: "center", borderRight: "1px solid #000", padding: 6 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lh.logoSrc}
             alt=""
@@ -74,12 +73,15 @@ function KopPreview({ lh }: { lh: Letterhead }) {
 
 export function LetterheadForm({
   userId,
+  instansi,
   initial,
 }: {
   userId: string;
+  /** profiles.instansi — sumber nama kampus pada kop Formulir 2. */
+  instansi: string;
   initial: LetterheadSettings | null;
 }) {
-  const router = useRouter();
+  const refresh = useRefresh();
   const confirm = useConfirm();
 
   const initialState = React.useMemo(
@@ -88,14 +90,25 @@ export function LetterheadForm({
         ? initial.kop_baris
         : ["PT BADAK NGL", "Program Magang / Praktik Kerja Lapangan · Bontang, Kalimantan Timur"],
       judul: initial?.judul_dokumen ?? "LAPORAN KEGIATAN MAGANG",
-      kampus: initial?.kampus_upper ?? "SEKOLAH TINGGI TEKNOLOGI BONTANG",
+      /*
+        Diturunkan dari profil, bukan dikonstankan.
+
+        Nilainya terkunci di UI, jadi bila bawaannya tetap USTB maka setiap
+        pengguna dari kampus lain akan terjebak dengan nama kampus yang salah
+        pada Formulir 2 tanpa cara memperbaikinya. Baris yang sudah tersimpan
+        tetap menang: formatnya sering mengikuti SOP kampus, bukan sekadar
+        huruf besar dari nama instansi.
+      */
+      kampus: initial?.kampus_upper ?? instansi.toUpperCase(),
       prodi: initial?.prodi_upper ?? "PROGRAM STUDI TEKNIK INFORMATIKA",
       formulir: initial?.formulir_title ?? "FORM KEHADIRAN DAN AKTIFITAS KERJA PRAKTEK",
       kodeSop: initial?.kode_sop ?? "TI-SOP-17/FM-01",
       lokasi: initial?.lokasi_ttd ?? "Bontang",
       logoUrl: initial?.logo_url ?? null,
+      warnaPrimer: initial?.warna_primer ?? null,
+      warnaAksen: initial?.warna_aksen ?? null,
     }),
-    [initial],
+    [initial, instansi],
   );
 
   const [form, setForm] = React.useState(initialState);
@@ -121,6 +134,39 @@ export function LetterheadForm({
     };
   }, [previewUrl]);
 
+  /**
+   * Menurunkan warna persona dari logo yang baru dipilih.
+   *
+   * Memakai jalur yang sama dengan halaman pendaftaran — `sampleRgba` +
+   * `dominantColors` + `makePersona` — bukan implementasi kedua. Bedanya cuma
+   * satu: di sini gerbang "PNG wajib berlatar transparan" tidak berlaku, karena
+   * logo kop dokumen boleh JPG dan boleh punya latar.
+   *
+   * `makePersona` yang memutuskan mana jangkar gelap dan mana warna kerja, lalu
+   * menjepit keduanya ke ambang kontras — jadi logo kuning pucat pun tidak bisa
+   * menghasilkan tombol yang tak terbaca. Diam-diam tidak melakukan apa-apa bila
+   * logonya monokrom atau gagal didekode (SVG tidak didukung createImageBitmap):
+   * mengganti warna dengan tebakan buruk lebih merugikan daripada diam.
+   */
+  async function adoptLogoColors(file: File) {
+    let swatches;
+    try {
+      const { rgba, w, h } = await sampleRgba(file);
+      swatches = dominantColors(rgba, w, h, 2);
+    } catch {
+      return;
+    }
+
+    const persona = makePersona(swatches.map((sw) => sw.hex));
+    if (!persona) return;
+
+    setForm((f) => ({ ...f, warnaPrimer: persona.primary, warnaAksen: persona.accent }));
+    notifySuccess("Warna diambil dari logo", {
+      description:
+        "Warna primer dan sekunder mengikuti logo baru. Bisa Anda ubah sebelum menyimpan.",
+    });
+  }
+
   const preview = resolveLetterhead({
     user_id: userId,
     kop_baris: form.kopBaris.filter((b) => b.trim()),
@@ -132,6 +178,8 @@ export function LetterheadForm({
     lokasi_ttd: form.lokasi,
     logo_url: previewUrl ?? form.logoUrl,
     logo_versi: initial?.logo_versi ?? 0,
+    warna_primer: form.warnaPrimer,
+    warna_aksen: form.warnaAksen,
     updated_at: null,
   });
 
@@ -167,6 +215,8 @@ export function LetterheadForm({
         lokasi_ttd: form.lokasi.trim(),
         logo_url: logoUrl,
         logo_versi: logoVersi,
+        warna_primer: form.warnaPrimer,
+        warna_aksen: form.warnaAksen,
       });
       if ("error" in result) throw new Error(result.error);
 
@@ -180,7 +230,7 @@ export function LetterheadForm({
       notifySuccess("Kop surat tersimpan", {
         description: "Kedua dokumen cetak dan export kini memakai identitas ini.",
       });
-      router.refresh();
+      refresh();
     } catch (err) {
       notifyError("Gagal menyimpan kop surat", { description: describeError(err) });
     } finally {
@@ -202,10 +252,10 @@ export function LetterheadForm({
     }
     setLogoFile(null);
     notifySuccess("Kop surat kembali ke bawaan", {
-      description: "Identitas Badak NGL / STITEK dipakai lagi untuk semua dokumen.",
+      description: "Identitas Badak NGL / USTB dipakai lagi untuk semua dokumen.",
     });
     confirm.close();
-    router.refresh();
+    refresh();
   }
 
   return (
@@ -219,8 +269,9 @@ export function LetterheadForm({
             </CardTitle>
             <CardDescription>
               Ganti identitas kop kedua dokumen cetak dengan kampus/instansi Anda. Tanpa
-              setelan, dokumen memakai identitas bawaan Badak NGL / STITEK. Ikon aplikasi
-              (PWA) tidak ikut berubah.
+              setelan, dokumen memakai identitas bawaan Badak NGL / USTB. Ikon aplikasi
+              (PWA) tidak ikut berubah. Logo yang Anda pasang di sini juga dipakai pada
+              email verifikasi.
             </CardDescription>
           </CardHeader>
 
@@ -283,12 +334,17 @@ export function LetterheadForm({
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Nama Kampus (Formulir 2)" htmlFor="lh-kampus">
+              <Field
+                label="Nama Kampus (Formulir 2)"
+                htmlFor="lh-kampus"
+                hint="Mengikuti Instansi pada profil, yang terkunci sejak pendaftaran."
+              >
                 <Input
                   {...fieldAria("lh-kampus")}
-                  maxLength={160}
                   value={form.kampus}
-                  onChange={(e) => set("kampus", e.target.value)}
+                  readOnly
+                  disabled
+                  className="cursor-not-allowed bg-muted text-muted-foreground"
                 />
               </Field>
               <Field label="Program Studi (Formulir 2)" htmlFor="lh-prodi">
@@ -346,6 +402,7 @@ export function LetterheadForm({
                   onFileChange={(next, error) => {
                     setLogoFile(next);
                     setLogoError(error ?? null);
+                    if (next && !error) void adoptLogoColors(next);
                   }}
                 />
                 {(form.logoUrl || logoFile) && (
@@ -355,10 +412,62 @@ export function LetterheadForm({
                     size="sm"
                     onClick={() => {
                       setLogoFile(null);
-                      set("logoUrl", null);
+                      // Warnanya ikut dilepas: warna kampus yang tertinggal
+                      // setelah logonya hilang adalah identitas separuh jadi.
+                      setForm((f) => ({
+                        ...f,
+                        logoUrl: null,
+                        warnaPrimer: null,
+                        warnaAksen: null,
+                      }));
                     }}
                   >
                     Kembalikan ke logo bawaan
+                  </Button>
+                )}
+              </div>
+            </Field>
+
+            <Field
+              label="Warna Persona"
+              htmlFor="lh-warna-primer"
+              optional="kosong = biru bawaan"
+              hint="Terisi otomatis dari logo yang Anda unggah, dan tetap bisa digeser di sini sebelum disimpan. Jangkar dipakai untuk kop dan bilah seksi dokumen; aksen untuk tombol, tautan, dan seluruh warna sekunder antarmuka. Warna ini ikut ke PDF dan XLSX."
+            >
+              <div className="flex flex-wrap items-center gap-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    id="lh-warna-primer"
+                    type="color"
+                    className="size-9 cursor-pointer rounded-md border border-input bg-transparent"
+                    value={preview.persona.primary}
+                    onChange={(e) => set("warnaPrimer", e.target.value)}
+                    disabled={busy}
+                  />
+                  Jangkar gelap
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    id="lh-warna-aksen"
+                    type="color"
+                    className="size-9 cursor-pointer rounded-md border border-input bg-transparent"
+                    value={preview.persona.accent}
+                    onChange={(e) => set("warnaAksen", e.target.value)}
+                    disabled={busy}
+                  />
+                  Aksen
+                </label>
+                {(form.warnaPrimer || form.warnaAksen) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      set("warnaPrimer", null);
+                      set("warnaAksen", null);
+                    }}
+                  >
+                    Kembalikan warna bawaan
                   </Button>
                 )}
               </div>
@@ -388,7 +497,7 @@ export function LetterheadForm({
         onOpenChange={confirm.onOpenChange}
         loading={confirm.loading}
         title="Reset kop surat ke bawaan?"
-        description="Seluruh identitas kop kembali ke Badak NGL / STITEK dan logo unggahan dihapus."
+        description="Seluruh identitas kop kembali ke Badak NGL / USTB dan logo unggahan dihapus."
         consequences={[
           "Kedua dokumen cetak memakai kop bawaan lagi",
           ...(initial?.logo_url ? ["Berkas logo unggahan ikut terhapus"] : []),

@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import Link from "next/link";
+import { Link } from "react-router-dom";
 import {
   Award,
   Check,
@@ -26,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { EmptyState } from "@/components/shared/empty-state";
 import { createClient } from "@/lib/supabase/client";
+import { generateDraft } from "@/lib/linkedin-client";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
 import {
   LINKEDIN_SECTIONS,
@@ -154,33 +153,16 @@ export function LinkedInAssistant({
     if (!selected) return;
     setAi({ phase: "loading" });
     try {
-      const res = await fetch("/api/skm/linkedin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activity_id: selected.id, seksi: section, bahasa, force }),
+      const data = await generateDraft({
+        activity_id: selected.id,
+        seksi: section,
+        bahasa,
+        force,
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        draft?: string;
-        id?: string | null;
-        cached?: boolean;
-        error?: string;
-      };
-      if (!res.ok || !data.draft) {
-        setAi({
-          phase: "error",
-          message: data.error ?? `Server membalas status ${res.status}.`,
-        });
-        return;
-      }
-      setAi({
-        phase: "success",
-        draft: data.draft,
-        id: data.id ?? null,
-        cached: Boolean(data.cached),
-      });
+      setAi({ phase: "success", draft: data.draft, id: data.id, cached: data.cached });
       if (!data.cached && data.id) {
         setHistory((h) => [
-          { id: data.id!, draft: data.draft!, model: "", created_at: new Date().toISOString() },
+          { id: data.id!, draft: data.draft, model: "", created_at: new Date().toISOString() },
           ...h,
         ]);
       }
@@ -224,7 +206,7 @@ export function LinkedInAssistant({
           description="Tambahkan minimal satu kegiatan — prestasi, organisasi, atau sertifikasi — lalu kembali ke sini."
           action={
             <Button asChild variant="gradient">
-              <Link href="/skm/new">
+              <Link to="/skm/new">
                 <Plus aria-hidden />
                 Tambah Kegiatan SKM
               </Link>
@@ -239,7 +221,7 @@ export function LinkedInAssistant({
     <div className="grid items-start gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
       {/* ---- Entry picker. A horizontal rail on mobile, a list on desktop. ---- */}
       <Card className="overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
+        <div className="border-b border-foreground px-4 py-3">
           <p className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
             Pilih entri SKM
           </p>
@@ -368,7 +350,7 @@ export function LinkedInAssistant({
                 </div>
 
                 {ai.phase === "error" && (
-                  <p className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                  <p className="rounded-md border border-foreground bg-muted/50 px-3 py-2.5 text-[12.5px] leading-relaxed text-muted-foreground">
                     {ai.message} — teks template di atas tetap bisa dipakai sebagai
                     fallback.
                   </p>
@@ -400,7 +382,7 @@ export function LinkedInAssistant({
                 )}
 
                 {history.length > 0 && (
-                  <div className="space-y-1.5 border-t border-border pt-3">
+                  <div className="space-y-1.5 border-t border-foreground pt-3">
                     <p className="text-2xs font-bold uppercase tracking-wider text-muted-foreground">
                       Riwayat draft ({history.length})
                     </p>

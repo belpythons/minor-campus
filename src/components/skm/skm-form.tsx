@@ -1,8 +1,7 @@
-"use client";
-
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useRefresh } from "@/hooks/use-refresh";
 import { Save, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,7 @@ import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { UnsavedBar } from "@/components/shared/unsaved-bar";
 import { createClient } from "@/lib/supabase/client";
 import { removePublicFile, uploadPublicFile } from "@/lib/upload";
-import { deleteSkmActivity, saveSkmActivity } from "@/app/(app)/skm/actions";
+import { deleteSkmActivity, saveSkmActivity } from "@/lib/skm-actions";
 import type { SkmPointRule } from "@/lib/skm-preset";
 import { MAX_CERTIFICATE_SIZE, SKM_KATEGORI, STORAGE_BUCKET_CERTIFICATES } from "@/lib/constants";
 import { todayISO } from "@/lib/format";
@@ -59,7 +58,8 @@ export function SkmForm({
   /** Persona BINUS: tampilkan input jam kegiatan sosial. */
   withJamSosial?: boolean;
 }) {
-  const router = useRouter();
+  const navigate = useNavigate();
+  const refresh = useRefresh();
   const isEdit = Boolean(initial);
   const confirm = useConfirm();
 
@@ -193,8 +193,8 @@ export function SkmForm({
         description: `${payload.judul} · ${payload.poin_skm} poin`,
       });
 
-      router.push("/skm");
-      router.refresh();
+      navigate("/skm");
+      refresh();
     } catch (err) {
       notifyError("Gagal menyimpan kegiatan", { description: describeError(err) });
       setBusy(false);
@@ -219,8 +219,8 @@ export function SkmForm({
 
     notifySuccess("Kegiatan SKM dihapus", { description: initial.judul });
     confirm.close();
-    router.push("/skm");
-    router.refresh();
+    navigate("/skm");
+    refresh();
   }
 
   return (
@@ -298,7 +298,7 @@ export function SkmForm({
               <Input
                 {...fieldAria("penyelenggara", errors.penyelenggara)}
                 maxLength={255}
-                placeholder="mis. Kementerian Kominfo / Dicoding Indonesia / HMTI STITEK"
+                placeholder="mis. Kementerian Kominfo / Dicoding Indonesia / HMTI USTB"
                 value={form.penyelenggara}
                 onChange={(e) => set("penyelenggara", e.target.value)}
               />
@@ -455,7 +455,7 @@ export function SkmForm({
               {busy ? "Menyimpan…" : "Simpan Kegiatan"}
             </Button>
             <Button asChild variant="outline" disabled={busy}>
-              <Link href="/skm">Batal</Link>
+              <Link to="/skm">Batal</Link>
             </Button>
           </div>
 

@@ -1,7 +1,5 @@
-"use client";
-
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRefresh } from "@/hooks/use-refresh";
 import { ExternalLink, GraduationCap } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { ConfirmDialog, useConfirm } from "@/components/shared/confirm-dialog";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
-import { setSkmPersona } from "@/app/(app)/skm/actions";
+import { setSkmPersona } from "@/lib/skm-actions";
 import type { SkmPreset } from "@/lib/skm-preset";
 
 export function PersonaPicker({
@@ -25,7 +23,7 @@ export function PersonaPicker({
   presets: SkmPreset[];
   active: SkmPreset;
 }) {
-  const router = useRouter();
+  const refresh = useRefresh();
   const confirm = useConfirm();
   const [pendingId, setPendingId] = React.useState<string | null>(null);
 
@@ -54,7 +52,7 @@ export function PersonaPicker({
     });
     confirm.close();
     setPendingId(null);
-    router.refresh();
+    refresh();
   }
 
   return (

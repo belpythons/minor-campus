@@ -8,12 +8,12 @@ Implementasi dari `QOL/modul-logbook/`. Modul ini mencatat aktivitas Kerja Prakt
 
 | Rute | Berkas | Fungsi |
 |---|---|---|
-| `/logbook` | `src/app/(app)/logbook/page.tsx` | Daftar entri + filter pembimbing + 4 KPI |
-| `/logbook/new` | `src/app/(app)/logbook/new/page.tsx` | Form tambah entri / konsultasi |
-| `/logbook/[id]/edit` | `src/app/(app)/logbook/[id]/edit/page.tsx` | Ubah + hapus |
-| `/logbook/supervisors` | `src/app/(app)/logbook/supervisors/page.tsx` | CRUD pembimbing + hitungan konsultasi |
-| `/logbook/rekap` | `src/app/(app)/logbook/rekap/page.tsx` | Rekap konsultasi dikelompokkan per atasan |
-| `/print/formulir2` | `src/app/print/formulir2/page.tsx` | Dokumen cetak A4 Formulir 2 |
+| `/logbook` | `src/pages/logbook/LogbookPage.tsx` | Daftar entri + filter pembimbing + 4 KPI |
+| `/logbook/new` | `src/pages/logbook/LogbookFormPage.tsx` | Form tambah entri / konsultasi |
+| `/logbook/[id]/edit` | `src/pages/logbook/LogbookFormPage.tsx` | Ubah + hapus |
+| `/logbook/supervisors` | `src/pages/logbook/SupervisorsPage.tsx` | CRUD pembimbing + hitungan konsultasi |
+| `/logbook/rekap` | `src/pages/logbook/RekapKonsultasiPage.tsx` | Rekap konsultasi dikelompokkan per atasan |
+| `/print/formulir2` | `src/pages/print/Formulir2Page.tsx` | Dokumen cetak A4 Formulir 2 |
 
 Komponen: `src/components/logbook/{logbook-form,logbook-table,supervisor-manager}.tsx`
 Query bersama: `src/lib/logbook-query.ts`

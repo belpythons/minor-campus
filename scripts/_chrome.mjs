@@ -35,5 +35,22 @@ export function findChrome() {
   return found;
 }
 
-export const QA_EMAIL = process.env.QA_EMAIL ?? "belva.test@stitek.local";
-export const QA_PASSWORD = process.env.QA_PASSWORD ?? "Test1234!";
+/**
+ * Kredensial QA wajib dari env — akun uji bawaan sudah dihapus.
+ *
+ * Sengaja fungsi, bukan konstanta modul: konstanta akan melempar saat impor,
+ * sehingga skrip yang cuma butuh findChrome ikut mati.
+ */
+function requireEnv(name) {
+  const v = process.env[name];
+  if (!v) {
+    throw new Error(
+      `${name} belum diset. Akun uji khusus sudah dihapus — jalankan harness ` +
+      "dengan QA_EMAIL dan QA_PASSWORD akun demo Anda sendiri.",
+    );
+  }
+  return v;
+}
+
+export const qaEmail = () => requireEnv("QA_EMAIL");
+export const qaPassword = () => requireEnv("QA_PASSWORD");

@@ -1,5 +1,3 @@
-"use client";
-
 import * as React from "react";
 import { AlertTriangle, Trash2 } from "lucide-react";
 
@@ -56,7 +54,7 @@ export function ConfirmDialog({
           <div className="flex items-start gap-3">
             <span
               className={cn(
-                "flex size-9 shrink-0 items-center justify-center rounded-full",
+                "flex size-9 shrink-0 items-center justify-center rounded-xl border border-foreground",
                 destructive ? "bg-destructive/12 text-destructive" : "bg-warning/16 text-warning",
               )}
               aria-hidden

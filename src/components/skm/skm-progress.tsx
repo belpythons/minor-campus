@@ -1,5 +1,3 @@
-"use client";
-
 import { AlertTriangle, CheckCircle2, HeartHandshake, Target } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -74,7 +72,7 @@ export function SkmProgress({
         </p>
 
         {targetJamSosial != null && (
-          <div className="mt-4 border-t border-border pt-3.5">
+          <div className="mt-4 border-t border-foreground pt-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground">
                 <HeartHandshake className="size-3.5" aria-hidden />
@@ -94,7 +92,7 @@ export function SkmProgress({
         )}
 
         {capTerlampaui.length > 0 && (
-          <p className="mt-3 flex items-start gap-1.5 rounded-md border border-border bg-muted/50 px-3 py-2 text-[12px] text-muted-foreground">
+          <p className="mt-3 flex items-start gap-1.5 rounded-md border border-foreground bg-muted/50 px-3 py-2 text-[12px] text-muted-foreground">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden />
             <span>
               Cap kategori terlampaui:{" "}
@@ -106,7 +104,7 @@ export function SkmProgress({
           </p>
         )}
 
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-3.5">
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-foreground pt-3.5">
           {SKM_KATEGORI.map((k) => {
             const n = countByKategori[k.value] ?? 0;
             return (

@@ -1,14 +1,12 @@
-"use client";
-
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRefresh } from "@/hooks/use-refresh";
 import { Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { describeError, notifyError, notifySuccess } from "@/lib/notify";
-import { setProjectAdvisors } from "@/app/(app)/logbook/actions";
+import { setProjectAdvisors } from "@/lib/logbook-actions";
 import type { Supervisor } from "@/lib/types";
 
 /** Penugasan persona konsultan per proyek (project_advisors). */
@@ -21,7 +19,7 @@ export function AdvisorPicker({
   supervisors: Supervisor[];
   selectedIds: string[];
 }) {
-  const router = useRouter();
+  const refresh = useRefresh();
   const [checked, setChecked] = React.useState<Set<string>>(new Set(selectedIds));
   const [busy, setBusy] = React.useState(false);
 
@@ -37,7 +35,7 @@ export function AdvisorPicker({
       return;
     }
     notifySuccess("Daftar konsultan proyek diperbarui");
-    router.refresh();
+    refresh();
   }
 
   if (supervisors.length === 0) {
